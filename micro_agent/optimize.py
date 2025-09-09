@@ -134,16 +134,19 @@ def _compile_and_save(n: int, tasks_path: str, save_path: str) -> dict:
     def metric(example, pred, trace):
         q = example.get('question', '')
         expect = example.get('expect_contains')
-        score = 0.0
         calls = getattr(pred, 'tool_calls', None)
-        if any(ch.isdigit() for ch in q) and calls:
-            score += 0.5
-        if ("time" in q.lower() or "utc" in q.lower()) and calls:
-            score += 0.5
         fin = getattr(pred, 'final', '') or ''
-        if expect and expect in str(fin):
-            score += 1.0
-        return score
+
+        # If we know the expected substring (math tasks), require it in final.
+        if expect:
+            return 1.0 if (fin and expect in str(fin)) else 0.0
+
+        # Otherwise (e.g., time tasks), accept when appropriate tool is used.
+        if calls and getattr(calls, 'tool_calls', None):
+            for c in calls.tool_calls:
+                if getattr(c, 'name', '') == 'now':
+                    return 1.0
+        return 0.0
 
     # Build trainset Examples
     trainset: List[Example] = []
@@ -155,18 +158,23 @@ def _compile_and_save(n: int, tasks_path: str, save_path: str) -> dict:
         ex = ex.with_inputs('question', 'state', 'tools')
         trainset.append(ex)
 
-    tele = BootstrapFewShot(metric=metric, max_bootstrapped_demos=8, max_labeled_demos=8, max_rounds=1)
+    tele = BootstrapFewShot(metric=metric, metric_threshold=1.0, max_bootstrapped_demos=8, max_labeled_demos=0, max_rounds=1)
     compiled = tele.compile(Planner(), trainset=trainset)
 
     # Extract demos from the compiled predictor
     demos = []
     for demo in getattr(compiled.decide, 'demos', []) or []:
         raw = demo.toDict()
+        tool_calls = _serialize_tool_calls(raw.get("tool_calls"))
+        final = raw.get("final")
+        # Keep only demos that actually contain signals (augmented)
+        if not tool_calls and not final:
+            continue
         record = {
             "question": raw.get("question"),
             "state": raw.get("state", "[]"),
-            "tool_calls": _serialize_tool_calls(raw.get("tool_calls")),
-            "final": raw.get("final"),
+            "tool_calls": tool_calls,
+            "final": final,
         }
         demos.append(record)
 
