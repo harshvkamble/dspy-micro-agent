@@ -5,6 +5,7 @@ from rich.panel import Panel
 from .config import configure_lm
 from .agent import MicroAgent
 from .runtime import dump_trace, new_trace_id
+from .costs import estimate_prediction_cost
 
 console = Console()
 
@@ -63,8 +64,12 @@ def main():
 
     pred = agent(q)
     trace_id = new_trace_id()
-    path = dump_trace(trace_id, q, pred.trace, pred.answer)
+    usage = getattr(pred, "usage", {}) or {}
+    est = estimate_prediction_cost(q, pred.trace, pred.answer, usage)
+    path = dump_trace(trace_id, q, pred.trace, pred.answer, usage=usage, cost_usd=est.get("cost_usd"))
 
     console.print(Panel.fit(pred.answer, title="ANSWER"))
+    console.print()
+    console.print(Panel.fit(json.dumps({"usage": usage, "estimates": est}, indent=2, ensure_ascii=False), title="USAGE / ESTIMATES"))
     console.print()
     console.print(Panel.fit(json.dumps(pred.trace, indent=2, ensure_ascii=False), title=f"TRACE (saved: {path})"))

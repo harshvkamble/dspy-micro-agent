@@ -68,8 +68,8 @@ micro-agent replay --path traces/<id>.jsonl --index -1
 ## HTTP API
 - Start: `uvicorn micro_agent.server:app --reload --port 8000`
 - Endpoint: `POST /ask`
-  - Request JSON: `{ "question": "...", "max_steps": 6 }`
-  - Response JSON: `{ "answer": str, "trace_id": str, "trace_path": str, "steps": [...] }`
+  - Request JSON: `{ "question": "...", "max_steps": 6, "use_tool_calls": bool? }`
+  - Response JSON: `{ "answer": str, "trace_id": str, "trace_path": str, "steps": [...], "usage": {...}, "cost_usd": number }`
 
 Example:
 ```bash

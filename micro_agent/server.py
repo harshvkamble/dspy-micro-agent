@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os, json
 from pydantic import BaseModel
+from .costs import estimate_prediction_cost
 from importlib.metadata import version as _pkg_version, PackageNotFoundError
 from .config import configure_lm
 from .agent import MicroAgent
@@ -27,6 +28,8 @@ class AskResponse(BaseModel):
     trace_id: str
     trace_path: str
     steps: list
+    usage: dict | None = None
+    cost_usd: float | None = None
 
 configure_lm()
 _agent = MicroAgent()
@@ -50,8 +53,10 @@ def ask(req: AskRequest):
     agent = _agent if req.use_tool_calls is None and req.max_steps == _agent.max_steps else MicroAgent(max_steps=req.max_steps, use_tool_calls=req.use_tool_calls)
     pred = agent(req.question)
     trace_id = new_trace_id()
-    path = dump_trace(trace_id, req.question, pred.trace, pred.answer)
-    return AskResponse(answer=pred.answer, trace_id=trace_id, trace_path=path, steps=pred.trace)
+    usage = getattr(pred, "usage", {}) or {}
+    est = estimate_prediction_cost(req.question, pred.trace, pred.answer, usage)
+    path = dump_trace(trace_id, req.question, pred.trace, pred.answer, usage=usage, cost_usd=est.get("cost_usd"))
+    return AskResponse(answer=pred.answer, trace_id=trace_id, trace_path=path, steps=pred.trace, usage=usage, cost_usd=est.get("cost_usd"))
 
 @app.get("/trace/{trace_id}")
 def get_trace(trace_id: str):

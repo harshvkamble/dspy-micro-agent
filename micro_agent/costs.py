@@ -1,6 +1,6 @@
 from __future__ import annotations
 import os
-from typing import Tuple
+from typing import Tuple, Any, Dict
 
 def _try_tiktoken(model: str):
     try:
@@ -63,3 +63,25 @@ def get_prices_per_1k(model: str, provider: str) -> Tuple[float, float]:
 def estimate_cost_usd(input_tokens: int, output_tokens: int, model: str, provider: str) -> float:
     in_price_1k, out_price_1k = get_prices_per_1k(model, provider)
     return (input_tokens / 1000.0) * in_price_1k + (output_tokens / 1000.0) * out_price_1k
+
+def estimate_prediction_cost(question: str, trace: Any, answer: str, usage: Dict[str, Any]) -> Dict[str, Any]:
+    """Estimate token usage and USD cost for a single prediction.
+
+    Heuristic: input tokens ~= lm_calls * tokens(question) + tokens(str(trace))
+               output tokens ~= tokens(answer)
+    """
+    provider = (usage or {}).get("provider") or "openai"
+    model = (usage or {}).get("model") or "gpt-4o-mini"
+    lm_calls = int((usage or {}).get("lm_calls", 0) or 0)
+
+    q_tokens = estimate_tokens(str(question or ""), model)
+    trace_tokens = estimate_tokens(str(trace or ""), model)
+    ans_tokens = estimate_tokens(str(answer or ""), model)
+    in_tokens = lm_calls * q_tokens + trace_tokens
+    out_tokens = ans_tokens
+    cost = estimate_cost_usd(in_tokens, out_tokens, model=model, provider=provider)
+    return {
+        "input_tokens": in_tokens,
+        "output_tokens": out_tokens,
+        "cost_usd": cost,
+    }

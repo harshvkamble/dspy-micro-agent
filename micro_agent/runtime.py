@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json, os, re, time, uuid, datetime
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict, NotRequired
 import ast
 try:
     import json_repair
@@ -21,11 +21,13 @@ class TraceRecord(TypedDict):
     question: str
     steps: List[Step]
     answer: str
+    usage: NotRequired[Dict[str, Any]]
+    cost_usd: NotRequired[float]
 
 def new_trace_id() -> str:
     return uuid.uuid4().hex
 
-def dump_trace(trace_id: str, question: str, steps: List[Step], answer: str) -> str:
+def dump_trace(trace_id: str, question: str, steps: List[Step], answer: str, *, usage: Optional[Dict[str, Any]] = None, cost_usd: Optional[float] = None) -> str:
     rec: TraceRecord = {
         "id": trace_id,
         "ts": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -33,6 +35,10 @@ def dump_trace(trace_id: str, question: str, steps: List[Step], answer: str) -> 
         "steps": steps,
         "answer": answer,
     }
+    if usage is not None:
+        rec["usage"] = usage
+    if cost_usd is not None:
+        rec["cost_usd"] = float(cost_usd)
     path = os.path.join(TRACES_DIR, f"{trace_id}.jsonl")
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
