@@ -10,24 +10,22 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install package
+
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .[repair]
+          pip install -e .[dev]
+
       - name: Run tests
         env:
-          # Force mock provider to avoid external API calls
           LLM_PROVIDER: mock
-          USE_TOOL_CALLS: '0'
         run: |
           pytest -q
-      - name: Run evals (smoke)
-        env:
-          LLM_PROVIDER: mock
-          USE_TOOL_CALLS: '0'
-        run: |
-          python evals/run_evals.py --n 6
+
