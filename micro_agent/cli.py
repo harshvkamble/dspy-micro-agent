@@ -16,6 +16,9 @@ def main():
     a.add_argument("--question", required=True)
     a.add_argument("--utc", action="store_true", help="Ask time in UTC when using the 'now' tool")
     a.add_argument("--max-steps", type=int, default=6)
+    g = a.add_mutually_exclusive_group()
+    g.add_argument("--func-calls", action="store_true", help="Force OpenAI function-calls mode when available")
+    g.add_argument("--no-func-calls", action="store_true", help="Disable function-calls; use robust JSON planning")
 
     r = sub.add_parser("replay", help="Replay a saved trace JSONL record (by path)")
     r.add_argument("--path", required=True, help="Path to a trace .jsonl file")
@@ -47,7 +50,12 @@ def main():
         opt.optimize_cli(args)
         return
 
-    agent = MicroAgent(max_steps=args.max_steps)
+    use_tool_calls = None
+    if args.func_calls:
+        use_tool_calls = True
+    elif args.no_func_calls:
+        use_tool_calls = False
+    agent = MicroAgent(max_steps=args.max_steps, use_tool_calls=use_tool_calls)
 
     q = args.question
     if args.utc and "UTC" not in q:

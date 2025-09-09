@@ -96,15 +96,26 @@ Tool(
 ```
 - Plugins: set `TOOLS_MODULES` to a comma-separated list of importable modules. Each module should expose either a `TOOLS: dict[str, Tool]` or a `get_tools() -> dict[str, Tool]`.
 
+Runtime validation
+- Tool args are validated against the JSON Schema before execution; invalid args add a `⛔️validation_error` step and the agent requests a correction in the next loop. See `micro_agent/tools.py` (run_tool) and `micro_agent/agent.py` (validation error handling).
+
+
 ## Provider Modes
 - OpenAI: uses DSPy `PlanWithTools` with `JSONAdapter` to enable native function-calls. The model may return `tool_calls` or a `final` answer; tool calls are executed via our registry.
 - Others (e.g., Ollama): uses a robust prompt with few-shot JSON decision demos. Decisions are parsed with strict JSON; on failure we try `json_repair` (if installed) and Python-literal parsing.
 - Policy enforcement: if the question implies math, the agent requires a `calculator` step before finalizing; likewise for time/date with the `now` tool. Violations are recorded in the trace as `⛔️policy_violation` steps and planning continues.
 
+Code references (discoverability)
+- Replay subcommand: `micro_agent/cli.py` (subparser `replay`, printing JSONL)
+- Policy enforcement markers: `micro_agent/agent.py` (look for `⛔️policy_violation` and `⛔️validation_error`)
+- Provider fallback and configuration: `micro_agent/config.py` (`configure_lm` tries Ollama → OpenAI → registry fallbacks)
+- JSON repair in decision parsing: `micro_agent/runtime.py` (`parse_decision_text` uses `json_repair` if available)
+
 ## Tracing
 - Each run appends a record to `traces/<id>.jsonl` with fields: `id`, `ts`, `question`, `steps`, `answer`.
 - Steps are `{tool, args, observation}` in order of execution.
 - Replay: `micro-agent replay --path traces/<id>.jsonl --index -1`.
+ - Fetch by id (HTTP): `GET /trace/{id}` (CORS enabled).
 
 ## Evals
 - Dataset: `evals/tasks.yaml` (small, mixed math/time tasks). Rubric: `evals/rubrics.yaml`.
@@ -143,7 +154,9 @@ The agent loads these demos on OpenAI providers and attaches them to the `PlanWi
 - Build: `make docker-build`
 - Run (OpenAI): `OPENAI_API_KEY=... make docker-run` (maps `:8000`)
 - Run (Ollama on host): `make docker-run-ollama` (uses `host.docker.internal:11434`)
-- Service: `POST http://localhost:8000/ask` (see HTTP API above)
+- Env (OpenAI): `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-4o-mini`
+- Env (Ollama): `LLM_PROVIDER=ollama`, `OLLAMA_HOST=http://host.docker.internal:11434`, `OLLAMA_MODEL=llama3.1:8b`
+- Service: `POST http://localhost:8000/ask` and `GET /trace/{id}`
 
 ## Compatibility Notes
 - DSPy is pinned to `dspy-ai>=2.5.0`. Some adapters (e.g., `JSONAdapter`, `dspy.Ollama`) may vary across versions; the code tries multiple backends and falls back to generic registry forms when needed.

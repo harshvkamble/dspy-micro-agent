@@ -11,7 +11,7 @@ class MicroAgent(dspy.Module):
     The "agent framework": ~100 LOC.
     Plan -> (optional) tool -> observe -> loop -> finalize.
     """
-    def __init__(self, max_steps: int = 6):
+    def __init__(self, max_steps: int = 6, use_tool_calls: bool | None = None):
         super().__init__()
         # Use LM directly for robust JSON handling across providers.
         self.lm = dspy.settings.lm
@@ -23,7 +23,14 @@ class MicroAgent(dspy.Module):
             self._provider = (self.lm.model.split("/", 1)[0] if getattr(self.lm, "model", None) else None)
         except Exception:
             self._provider = None
-        self._use_tool_calls = bool(self._provider == "openai")
+        # Determine function-calls mode
+        env_override = os.getenv("USE_TOOL_CALLS")
+        if isinstance(use_tool_calls, bool):
+            self._use_tool_calls = use_tool_calls
+        elif env_override is not None:
+            self._use_tool_calls = env_override.strip().lower() in {"1","true","yes","on"}
+        else:
+            self._use_tool_calls = bool(self._provider == "openai")
         self.planner = None
         if self._use_tool_calls:
             try:
@@ -120,6 +127,9 @@ class MicroAgent(dspy.Module):
         import re
         lm_calls = 0
         tool_calls = 0
+        total_cost = 0.0
+        total_in_tokens = 0
+        total_out_tokens = 0
 
         def needs_math(q: str) -> bool:
             ql = q.lower()
@@ -141,6 +151,20 @@ class MicroAgent(dspy.Module):
 
         state: List[Dict[str, Any]] = []
 
+        def _accumulate_usage():
+            # Pull new usage entries from dspy.settings.trace
+            try:
+                for _, _, out in dspy.settings.trace[-1:]:
+                    usage = getattr(out, "usage", None) or {}
+                    nonlocal total_cost, total_in_tokens, total_out_tokens
+                    c = getattr(out, "cost", None)
+                    if c is not None:
+                        total_cost += float(c or 0)
+                    total_in_tokens += int(usage.get("input_tokens", 0) or 0)
+                    total_out_tokens += int(usage.get("output_tokens", 0) or 0)
+            except Exception:
+                pass
+
         # Path A: OpenAI-native tool calling using DSPy signatures/adapters.
         if self._use_tool_calls:
             dspy_tools = to_dspy_tools()
@@ -152,6 +176,7 @@ class MicroAgent(dspy.Module):
                     state=json.dumps(state, ensure_ascii=False),
                     tools=dspy_tools,
                 )
+                _accumulate_usage()
 
                 # If tool calls are proposed, execute them.
                 calls = getattr(pred, 'tool_calls', None)
@@ -163,7 +188,15 @@ class MicroAgent(dspy.Module):
                             args = getattr(call, 'args') or {}
                         except Exception:
                             continue
+                        # Validate/execute; on validation error, record and continue planning
                         obs = run_tool(name, args)
+                        if isinstance(obs, dict) and "error" in obs and "validation" in obs.get("error", ""):
+                            state.append({
+                                "tool": "⛔️validation_error",
+                                "args": {"name": name, "args": args},
+                                "observation": obs,
+                            })
+                            continue
                         state.append({"tool": name, "args": args, "observation": obs})
                         tool_calls += 1
                         executed_any = True
@@ -184,6 +217,9 @@ class MicroAgent(dspy.Module):
                         "tool_calls": tool_calls,
                         "provider": self._provider,
                         "model": getattr(self.lm, "model", None),
+                        "cost": total_cost,
+                        "input_tokens": total_in_tokens,
+                        "output_tokens": total_out_tokens,
                     }
                     return p
 
@@ -240,6 +276,9 @@ class MicroAgent(dspy.Module):
                 "tool_calls": tool_calls,
                 "provider": self._provider,
                 "model": getattr(self.lm, "model", None),
+                "cost": total_cost,
+                "input_tokens": total_in_tokens,
+                "output_tokens": total_out_tokens,
             }
             return p
         # Path B: Ollama-friendly loop via raw LM completions and robust JSON parsing.
@@ -253,6 +292,7 @@ class MicroAgent(dspy.Module):
                 )
             )
             decision_text = raw[0] if isinstance(raw, list) else (raw if isinstance(raw, str) else str(raw))
+            _accumulate_usage()
 
             # Extract and parse JSON; if malformed, try a flexible parser and one self-correction retry.
             try:
@@ -267,6 +307,7 @@ class MicroAgent(dspy.Module):
                     )
                 )
                 decision_text = raw[0] if isinstance(raw, list) else (raw if isinstance(raw, str) else str(raw))
+                _accumulate_usage()
                 try:
                     decision = parse_decision_text(decision_text)
                 except Exception:
@@ -303,6 +344,15 @@ class MicroAgent(dspy.Module):
                     name = str(tool_desc)
                     args = decision.get("args", {}) or {}
                 obs = run_tool(name, args)
+                if isinstance(obs, dict) and "error" in obs and "validation" in obs.get("error", ""):
+                    # second-chance: record detailed schema hint in state and continue planning
+                    schema = TOOLS.get(name).schema if name in TOOLS else {}
+                    state.append({
+                        "tool": "⛔️validation_error",
+                        "args": {"name": name, "args": args, "schema": schema},
+                        "observation": obs,
+                    })
+                    continue
                 state.append({"tool": name, "args": args, "observation": obs})
                 tool_calls += 1
                 continue
@@ -359,5 +409,8 @@ class MicroAgent(dspy.Module):
             "tool_calls": tool_calls,
             "provider": self._provider,
             "model": getattr(self.lm, "model", None),
+            "cost": total_cost,
+            "input_tokens": total_in_tokens,
+            "output_tokens": total_out_tokens,
         }
         return p

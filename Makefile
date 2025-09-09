@@ -17,16 +17,23 @@ test:
 	pytest -q
 
 docker-build:
-	docker build -t dspy-micro-agent .
+	docker build -t dspy-micro-agent:latest .
 
 docker-run:
-	# Pass OPENAI_API_KEY from your environment if using OpenAI
-	docker run --rm -p 8000:8000 -e OPENAI_API_KEY dspy-micro-agent
+	# Requires OPENAI_API_KEY in environment
+	docker run --rm -p 8000:8000 \
+	 -e OPENAI_API_KEY=$$OPENAI_API_KEY \
+	 -e OPENAI_MODEL=$${OPENAI_MODEL:-gpt-4o-mini} \
+	 -e TRACES_DIR=/data/traces \
+	 -v $$(pwd)/traces:/data/traces \
+	 dspy-micro-agent:latest
 
 docker-run-ollama:
-	# Assumes Ollama running on host at 11434; adjust host mapping if needed
+	# Connects to a host Ollama daemon
 	docker run --rm -p 8000:8000 \
-	  -e LLM_PROVIDER=ollama \
-	  -e OLLAMA_MODEL=llama3.2:1b \
-	  -e OLLAMA_HOST=http://host.docker.internal:11434 \
-	  dspy-micro-agent
+	 -e LLM_PROVIDER=ollama \
+	 -e OLLAMA_HOST=http://host.docker.internal:11434 \
+	 -e OLLAMA_MODEL=$${OLLAMA_MODEL:-llama3.1:8b} \
+	 -e TRACES_DIR=/data/traces \
+	 -v $$(pwd)/traces:/data/traces \
+	 dspy-micro-agent:latest

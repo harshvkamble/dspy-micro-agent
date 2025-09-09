@@ -2,6 +2,7 @@ from __future__ import annotations
 import ast, operator, datetime, math, re
 from typing import List
 from typing import Any, Dict, Callable
+from jsonschema import validate as _js_validate, ValidationError as _JSValidationError
 
 class Tool:
     def __init__(self, name: str, description: str, schema: Dict[str, Any], func: Callable[[Dict[str, Any]], Any]):
@@ -14,6 +15,11 @@ class Tool:
         return {"name": self.name, "description": self.description, "schema": self.schema}
 
 # --- Safe calculator ---
+MAX_ALLOWED_OPS_NODES = 200
+MAX_EXPONENT = 12
+MAX_ABS_NUMBER = 10**12
+MAX_FACTORIAL_N = 12
+
 ALLOWED_OPS = {
     ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
     ast.Div: operator.truediv, ast.Pow: operator.pow, ast.Mod: operator.mod,
@@ -21,16 +27,28 @@ ALLOWED_OPS = {
 }
 ALLOWED_CALLS = {"fact": lambda x: math.factorial(int(x))}
 def _eval_expr(node):
-    if isinstance(node, ast.Num): return node.n  # py<3.8 compatibility
-    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)): return node.value
+    # Python 3.10+: numeric literals appear as ast.Constant
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
     if isinstance(node, ast.BinOp) and type(node.op) in ALLOWED_OPS:
-        return ALLOWED_OPS[type(node.op)](_eval_expr(node.left), _eval_expr(node.right))
+        lv, rv = _eval_expr(node.left), _eval_expr(node.right)
+        if isinstance(lv, (int, float)) and abs(lv) > MAX_ABS_NUMBER: raise ValueError("number too large")
+        if isinstance(rv, (int, float)) and abs(rv) > MAX_ABS_NUMBER: raise ValueError("number too large")
+        if isinstance(node.op, ast.Pow):
+            if isinstance(rv, (int, float)) and abs(rv) > MAX_EXPONENT:
+                raise ValueError("exponent too large")
+        return ALLOWED_OPS[type(node.op)](lv, rv)
     if isinstance(node, ast.UnaryOp) and type(node.op) in ALLOWED_OPS:
-        return ALLOWED_OPS[type(node.op)](_eval_expr(node.operand))
+        v = _eval_expr(node.operand)
+        if isinstance(v, (int, float)) and abs(v) > MAX_ABS_NUMBER: raise ValueError("number too large")
+        return ALLOWED_OPS[type(node.op)](v)
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ALLOWED_CALLS:
         if len(node.args) != 1:
             raise ValueError("Invalid arguments")
-        return ALLOWED_CALLS[node.func.id](_eval_expr(node.args[0]))
+        arg = _eval_expr(node.args[0])
+        if isinstance(arg, (int, float)) and arg > MAX_FACTORIAL_N:
+            raise ValueError("factorial too large")
+        return ALLOWED_CALLS[node.func.id](arg)
     if isinstance(node, ast.Expression): return _eval_expr(node.body)
     raise ValueError("Disallowed expression")
 
@@ -44,6 +62,9 @@ def preprocess_math(expr: str) -> str:
 def safe_eval_math(expr: str) -> float:
     expr = preprocess_math(expr)
     tree = ast.parse(expr, mode="eval")
+    # cap complexity
+    if sum(1 for _ in ast.walk(tree)) > MAX_ALLOWED_OPS_NODES:
+        raise ValueError("expression too complex")
     return _eval_expr(tree)
 
 def tool_calculator(args: Dict[str, Any]):
@@ -129,6 +150,13 @@ def run_tool(name: str, args: Dict[str, Any]):
     if name not in TOOLS:
         return {"error": f"Unknown tool '{name}'"}
     try:
+        # Validate against JSON Schema when provided
+        schema = TOOLS[name].schema or {}
+        if schema:
+            try:
+                _js_validate(instance=args or {}, schema=schema)
+            except _JSValidationError as e:
+                raise ValueError(f"args validation failed: {e.message}")
         return TOOLS[name].func(args or {})
     except Exception as e:
         return {"error": f"{type(e).__name__}: {e}"}
