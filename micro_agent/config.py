@@ -25,6 +25,30 @@ def configure_lm():
     temperature = float(os.getenv("TEMPERATURE", "0.2"))
     max_tokens = int(os.getenv("MAX_TOKENS", "1024"))
 
+    # If explicitly requested mock provider, short‑circuit to a local LM.
+    if provider == "mock":
+        class _MockLM:
+            model = "mock/local"
+            def __call__(self, *, prompt: str, **kwargs):
+                import re, json as _json
+                qmatch = re.search(r"Question:\s*(.*)", prompt, re.S)
+                question = qmatch.group(1).strip() if qmatch else prompt
+                ql = question.lower()
+                # heuristic: suggest calculator/now/final
+                if re.search(r"[0-9].*[+\-*/]", question) or any(w in ql for w in [
+                    "add","sum","multiply","divide","compute","calculate","total","power","factorial","!","**","^"
+                ]):
+                    # crude expression extraction
+                    cands = re.findall(r"[0-9\+\-\*/%\(\)\.!\^\s]+", question)
+                    cands = [c.strip() for c in cands if c.strip()]
+                    expr = max(cands, key=len) if cands else "2+2"
+                    return _json.dumps({"tool": {"name": "calculator", "args": {"expression": expr}}})
+                if any(w in ql for w in ["time","date","utc","current time","now"]):
+                    return _json.dumps({"tool": {"name": "now", "args": {"timezone": "utc"}}})
+                return _json.dumps({"final": {"answer": "ok"}})
+        dspy.settings.configure(lm=_MockLM(), track_usage=True)
+        return
+
     tried = []
 
     # Helper to try multiple backends safely
@@ -56,32 +80,10 @@ def configure_lm():
     if _try("dspy.LM(openai/<model>)", lambda: dspy.LM(f"openai/{openai_model}")):
         return
 
-    # Option 3: Mock LM (tests/CI)
-    class _MockLM:
+    # If we got here, all backends failed: fall back to mock
+    class _FallbackMockLM:
         model = "mock/local"
         def __call__(self, *, prompt: str, **kwargs):
-            # Very small heuristic: if math-like, suggest calculator; if time-like, suggest now; else finalize.
-            import re, json as _json
-            qmatch = re.search(r"Question:\s*(.*)", prompt, re.S)
-            question = qmatch.group(1).strip() if qmatch else prompt
-            ql = question.lower()
-            if re.search(r"[0-9].*[+\-*/]", question) or any(w in ql for w in ["add","sum","multiply","divide","compute","calculate","total","power","factorial","!","**","^"]):
-                expr = None
-                # Try to capture an expression inside the question
-                cands = re.findall(r"[0-9\+\-\*/%\(\)\.!\^\s]+", question)
-                cands = [c.strip() for c in cands if c.strip()]
-                expr = max(cands, key=len) if cands else ""
-                if expr:
-                    return _json.dumps({"tool": {"name": "calculator", "args": {"expression": expr}}})
-            if any(w in ql for w in ["time","date","utc","current time","now"]):
-                return _json.dumps({"tool": {"name": "now", "args": {"timezone": "utc"}}})
-            return _json.dumps({"final": {"answer": "ok"}})
-
-    # Allow explicit mock via env
-    if provider == "mock":
-        dspy.settings.configure(lm=_MockLM(), track_usage=True)
-        return
-
-    # If we got here, all backends failed: use mock and include details in a warning
-    dspy.settings.configure(lm=_MockLM(), track_usage=True)
+            return "{\"final\":{\"answer\":\"ok\"}}"
+    dspy.settings.configure(lm=_FallbackMockLM(), track_usage=True)
     return
