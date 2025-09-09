@@ -4,6 +4,7 @@ from statistics import mean
 from micro_agent.config import configure_lm
 from micro_agent.agent import MicroAgent
 from micro_agent.runtime import new_trace_id, dump_trace
+from micro_agent.costs import estimate_tokens, estimate_cost_usd
 
 def load_yaml(path: str):
     with open(path, "r", encoding="utf-8") as f:
@@ -70,10 +71,21 @@ def main():
         latencies.append(dt)
         # Basic usage tracking (provided by MicroAgent)
         usage = getattr(pred, "usage", {}) or {}
-        lm_calls_list.append(int(usage.get("lm_calls", 0) or 0))
+        lm_calls = int(usage.get("lm_calls", 0) or 0)
+        lm_calls_list.append(lm_calls)
         tool_calls_list.append(int(usage.get("tool_calls", 0) or 0))
         steps_list.append(len(pred.trace or []))
-        costs_list.append(float(usage.get("cost", 0.0) or 0.0))
+
+        # Approximate cost (tokens) per run using simple heuristics
+        provider = usage.get("provider") or "openai"
+        model = usage.get("model") or "gpt-4o-mini"
+        q_text = str(q)
+        trace_text = json.dumps(pred.trace, ensure_ascii=False)
+        ans_text = str(pred.answer or "")
+        # Rough input tokens ~ (lm_calls * question) + final trace
+        in_tokens = lm_calls * estimate_tokens(q_text, model=model) + estimate_tokens(trace_text, model=model)
+        out_tokens = estimate_tokens(ans_text, model=model)
+        costs_list.append(estimate_cost_usd(in_tokens, out_tokens, model=model, provider=provider))
 
         print(f"[{i}/{len(dataset)}] s={s} t={dt:.2f}s  q={q!r}")
 
