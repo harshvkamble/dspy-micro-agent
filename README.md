@@ -94,6 +94,51 @@ export OPENAI_MODEL=gpt-4o-mini
 micro-agent ask --question "Compute (7**2+14)/5 and explain briefly"
 ```
 
+## OpenAI Tool-Calls Mode
+
+- When `LLM_PROVIDER=openai` is active, the agent uses DSPy `PlanWithTools` with `JSONAdapter` to enable native function calling.
+- Inputs: `question`, `state` (JSON trace), `tools: list[dspy.Tool]` (from our registry).
+- Outputs: `tool_calls: dspy.ToolCalls` (executed via our registry) or `final: str`.
+- This matches the DSPy Tool-Use tutorial pattern and yields robust tool selection on OpenAI.
+
+Enable and run:
+```bash
+export LLM_PROVIDER=openai
+export OPENAI_MODEL=gpt-4o-mini
+micro-agent ask --question "Add 12345 and 67890, then tell me the current date (UTC)." --utc
+```
+
+## Trace Format
+
+- Each run persists a JSONL record in `traces/<id>.jsonl`:
+- Fields: `id`, `ts`, `question`, `steps`, `answer`.
+- Steps are `{tool, args, observation}` entries in order.
+
+Example step:
+```json
+{
+  "tool": "calculator",
+  "args": {"expression": "12345 + 67890"},
+  "observation": {"result": 80235}
+}
+```
+
+Replay a trace:
+```bash
+micro-agent replay --path traces/<id>.jsonl --index -1
+```
+
+## Eval Results
+
+- OpenAI (gpt-4o-mini, n=50):
+  - success_rate: 1.00
+  - avg_latency_sec: ~0.38
+
+- Ollama (llama3.1:8b, n=18):
+  - success_rate: 1.00
+  - avg_latency_sec: ~1.03
+
+
 
 ---
 
