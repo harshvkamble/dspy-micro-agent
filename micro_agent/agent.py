@@ -436,7 +436,7 @@ class MicroAgent(dspy.Module):
                 calc_results = [s["observation"].get("result") for s in calculators if isinstance(s.get("observation"), dict) and s["observation"].get("result") is not None]
                 if calc_results:
                     parts.append(str(calc_results[0]))
-            elif must_math:
+            if must_math and not parts:
                 # Last-chance math: try to infer a simple expression from the question.
                 ql = question.lower()
                 # If looks like 'add X and Y', sum integers.

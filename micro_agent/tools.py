@@ -54,9 +54,12 @@ def _eval_expr(node):
 
 def preprocess_math(expr: str) -> str:
     # Replace simple factorial forms like 9! or 12! with fact(9) / fact(12)
+    expr = str(expr or "").strip()
     expr = re.sub(r"(\d+)\!", r"fact(\1)", expr)
     # Replace caret ^ with exponentiation
     expr = expr.replace("^", "**")
+    # Trim trailing punctuation that commonly slips from prose
+    expr = expr.rstrip(".;:, ")
     return expr
 
 def safe_eval_math(expr: str) -> float:
