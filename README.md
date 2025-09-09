@@ -135,7 +135,16 @@ Code references (discoverability)
 - Model: `gpt-4o-mini`, N=30
 - Before (no demos): success_rate 1.00; avg_latency_sec ~0.188; avg_lm_calls 3.33; avg_tool_calls 1.17; avg_steps 3.17
 - After (compiled demos loaded): success_rate 1.00; avg_latency_sec ~0.188; avg_lm_calls 3.33; avg_tool_calls 1.17; avg_steps 3.17
-Notes: For this small dataset, demos neither help nor hurt. Seed demos from your real tasks for measurable gains.
+Notes: For this small dataset, demos neither help nor hurt. For larger flows, compile demos from your real tasks.
+
+### Cost & Tokens
+- The agent aggregates token counts and cost (when available). If provider usage isn’t exposed, it estimates tokens from prompts/outputs and computes cost using env prices.
+- Set env prices for OpenAI models (USD per 1K tokens):
+```bash
+export OPENAI_INPUT_PRICE_PER_1K=0.005  # example
+export OPENAI_OUTPUT_PRICE_PER_1K=0.015 # example
+```
+The eval script will include `avg_cost_usd`. Defaults to 0 if prices aren’t set.
 
 ## Optimize (Teleprompting)
 - Compile optimized few-shot demos for the OpenAI `PlanWithTools` planner and save to JSON:
