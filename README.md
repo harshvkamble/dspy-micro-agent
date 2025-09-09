@@ -1,5 +1,7 @@
 # DSPy Micro Agent
 
+[![CI](https://github.com/evalops/dspy-micro-agent/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/evalops/dspy-micro-agent/actions/workflows/ci.yml)
+
 Minimal agent runtime built with DSPy modules and a thin Python loop.
 - Plan/Act/Finalize expressed as DSPy `Signature`s, with OpenAI-native tool-calling when available.
 - Thin runtime (`agent.py`) handles looping, tool routing, and trace persistence.
