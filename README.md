@@ -111,6 +111,21 @@ Tool(
 - Run: `python evals/run_evals.py --n 50`.
 - Metrics printed: `success_rate`, `avg_latency_sec`, `avg_lm_calls`, `avg_tool_calls`, `avg_steps`, `n`.
 
+## Optimize (Teleprompting)
+- Compile optimized few-shot demos for the OpenAI `PlanWithTools` planner and save to JSON:
+```bash
+micro-agent optimize --n 12 --tasks evals/tasks.yaml --save opt/plan_demos.json
+```
+- Apply compiled demos automatically by placing them at the default path or setting:
+```bash
+export COMPILED_DEMOS_PATH=opt/plan_demos.json
+```
+- Optional: print a DSPy teleprompting template (for notebooks):
+```bash
+micro-agent optimize --n 12 --template
+```
+The agent loads these demos on OpenAI providers and attaches them to the `PlanWithTools` predictor to improve tool selection and output consistency.
+
 ## Architecture
 - `micro_agent/config.py`: configures DSPy LM. Tries Ollama first if requested, else OpenAI; supports `dspy.Ollama`, `dspy.OpenAI`, and registry fallbacks like `dspy.LM("openai/<model>")`.
 - `micro_agent/signatures.py`: DSPy `Signature`s for plan/act/finalize and OpenAI tool-calls.

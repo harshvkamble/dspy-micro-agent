@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json
+import json, os
 import dspy
 from typing import List, Dict, Any
 from .signatures import PlanOrAct, Finalize, PlanWithTools
@@ -24,6 +24,46 @@ class MicroAgent(dspy.Module):
         except Exception:
             self._provider = None
         self._use_tool_calls = bool(self._provider == "openai")
+        self.planner = None
+        if self._use_tool_calls:
+            try:
+                from dspy.adapters import JSONAdapter
+                dspy.settings.configure(adapter=JSONAdapter())
+            except Exception:
+                pass
+            self.planner = dspy.Predict(PlanWithTools)
+            self._load_compiled_demos()
+
+    def _load_compiled_demos(self):
+        import json as _json
+        try:
+            from dspy.adapters import ToolCalls as _ToolCalls
+        except Exception:
+            _ToolCalls = None
+        path = os.getenv("COMPILED_DEMOS_PATH", "opt/plan_demos.json")
+        if not path or not os.path.exists(path):
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = _json.load(f)
+            demos = []
+            for item in data:
+                q = item.get("question")
+                state = item.get("state", "[]")
+                final = item.get("final")
+                tc = item.get("tool_calls")
+                tool_calls = None
+                if _ToolCalls is not None and isinstance(tc, list):
+                    try:
+                        tool_calls = _ToolCalls.from_dict_list(tc)
+                    except Exception:
+                        tool_calls = None
+                demo = dspy.Example(question=q, state=state, final=final, tool_calls=tool_calls).with_inputs('question', 'state')
+                demos.append(demo)
+            if self.planner is not None and demos:
+                self.planner.demos = demos
+        except Exception:
+            return
 
     _DEMO_SNIPPETS = [
         # few-shot decision demos to guide JSON formatting and tool choice
@@ -103,20 +143,11 @@ class MicroAgent(dspy.Module):
 
         # Path A: OpenAI-native tool calling using DSPy signatures/adapters.
         if self._use_tool_calls:
-            # Temporarily set JSONAdapter to enable native function calling.
-            orig_adapter = dspy.settings.get('adapter', None)
-            try:
-                from dspy.adapters import JSONAdapter
-                dspy.settings.configure(adapter=JSONAdapter())
-            except Exception:
-                pass
-
             dspy_tools = to_dspy_tools()
-            planner = dspy.Predict(PlanWithTools)
 
             for _ in range(self.max_steps):
                 lm_calls += 1  # one planner call per loop
-                pred = planner(
+                pred = self.planner(
                     question=question,
                     state=json.dumps(state, ensure_ascii=False),
                     tools=dspy_tools,

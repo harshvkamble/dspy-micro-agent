@@ -1,0 +1,112 @@
+[
+  {
+    "question": "What's 2*(3+5)? Return only the number.",
+    "state": "[]",
+    "tool_calls": [
+      {
+        "name": "calculator",
+        "args": {
+          "expression": "2*(3+5)"
+        }
+      }
+    ],
+    "final": null
+  },
+  {
+    "question": "What time is it right now? Use UTC.",
+    "state": "[]",
+    "tool_calls": [
+      {
+        "name": "now",
+        "args": {
+          "timezone": "utc"
+        }
+      }
+    ],
+    "final": null
+  },
+  {
+    "question": "Compute (7**2 + 14) / 5 and explain briefly.",
+    "state": "[]",
+    "tool_calls": [
+      {
+        "name": "calculator",
+        "args": {
+          "expression": "(7**2 + 14) / 5"
+        }
+      }
+    ],
+    "final": null
+  },
+  {
+    "question": "Add 12345 and 67890, then tell me the current date (UTC).",
+    "state": "[]",
+    "tool_calls": [
+      {
+        "name": "calculator",
+        "args": {
+          "expression": "12345 + 67890"
+        }
+      },
+      {
+        "name": "now",
+        "args": {
+          "timezone": "utc"
+        }
+      }
+    ],
+    "final": null
+  },
+  {
+    "question": "If I spend $12.50 daily for 9 days, what's the total?",
+    "state": "[]",
+    "tool_calls": [
+      {
+        "name": "calculator",
+        "args": {
+          "expression": "12.50 * 9"
+        }
+      }
+    ],
+    "final": null
+  },
+  {
+    "question": "What's 9! / (3!*3!*3!)? Just the integer.",
+    "state": "[]",
+    "tool_calls": [
+      {
+        "name": "calculator",
+        "args": {
+          "expression": "9! / (3!*3!*3!)"
+        }
+      }
+    ],
+    "final": null
+  },
+  {
+    "question": "What's 2*(3+5)? Return only the number.",
+    "state": "[]",
+    "tool_calls": [
+      {
+        "name": "calculator",
+        "args": {
+          "expression": "2*(3+5)"
+        }
+      }
+    ],
+    "final": null
+  },
+  {
+    "question": "What time is it right now? Use UTC.",
+    "state": "[]",
+    "tool_calls": [
+      {
+        "name": "now",
+        "args": {
+          "timezone": "utc"
+        }
+      }
+    ],
+    "final": null
+  }
+]

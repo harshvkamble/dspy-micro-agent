@@ -21,9 +21,11 @@ def main():
     r.add_argument("--path", required=True, help="Path to a trace .jsonl file")
     r.add_argument("--index", type=int, default=-1, help="Record index in the file (default last)")
 
-    o = sub.add_parser("optimize", help="Run a quick baseline and print a DSPy teleprompting template")
+    o = sub.add_parser("optimize", help="Compile optimized planner demos and/or print a DSPy teleprompting template")
     o.add_argument("--n", type=int, default=12)
     o.add_argument("--tasks", default="evals/tasks.yaml")
+    o.add_argument("--save", default="opt/plan_demos.json", help="Path to save compiled demos (JSON)")
+    o.add_argument("--template", action="store_true", help="Also print a teleprompting template")
 
     args = parser.parse_args()
 

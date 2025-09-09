@@ -161,20 +161,12 @@ def _compile_and_save(n: int, tasks_path: str, save_path: str) -> dict:
     # Extract demos from the compiled predictor
     demos = []
     for demo in getattr(compiled.decide, 'demos', []) or []:
-        try:
-            inputs = demo.inputs().toDict()  # question/state/tools (tools omitted at save)
-        except Exception:
-            inputs = {}
-        try:
-            labels = demo.labels().toDict()
-        except Exception:
-            labels = {}
-
+        raw = demo.toDict()
         record = {
-            "question": inputs.get("question"),
-            "state": inputs.get("state", "[]"),
-            "tool_calls": _serialize_tool_calls(labels.get("tool_calls")),
-            "final": labels.get("final"),
+            "question": raw.get("question"),
+            "state": raw.get("state", "[]"),
+            "tool_calls": _serialize_tool_calls(raw.get("tool_calls")),
+            "final": raw.get("final"),
         }
         demos.append(record)
 
