@@ -37,7 +37,7 @@ pip install -e .
 - Optional tuning: `TEMPERATURE` (default `0.2`), `MAX_TOKENS` (default `1024`)
 - Tool plugins: `TOOLS_MODULES="your_pkg.tools,other_pkg.tools"` to load extra tools (see Tools below)
 - Traces location: `TRACES_DIR` (default `traces/`)
-- Function-calls override: `USE_TOOL_CALLS=1|0` to force-enable/disable OpenAI function-calls mode
+- Compiled demos (OpenAI planner): `COMPILED_DEMOS_PATH` (default `opt/plan_demos.json`)
 
 Examples:
 ```bash
@@ -55,9 +55,6 @@ export OLLAMA_HOST=http://localhost:11434
 - `micro-agent ask --question <text> [--utc] [--max-steps N]`
   - `--utc` appends a hint to prefer UTC when time is used.
   - Saves a JSONL trace under `traces/<id>.jsonl` and prints the path.
-- Function-calls control:
-  - `--func-calls` forces OpenAI-native function-calls when available.
-  - `--no-func-calls` disables function-calls and uses robust JSON planning.
 - `micro-agent replay --path traces/<id>.jsonl [--index -1]`
   - Pretty-prints a saved record from the JSONL file.
 
@@ -73,7 +70,6 @@ micro-agent replay --path traces/<id>.jsonl --index -1
 - Endpoint: `POST /ask`
   - Request JSON: `{ "question": "...", "max_steps": 6 }`
   - Response JSON: `{ "answer": str, "trace_id": str, "trace_path": str, "steps": [...] }`
-  - Optional: `use_tool_calls: true|false` to force function-calls behavior.
 
 Example:
 ```bash
@@ -85,9 +81,6 @@ curl -s http://localhost:8000/ask \
 OpenAPI:
 - FastAPI publishes `/openapi.json` and interactive docs at `/docs`.
 - Schemas reflect `AskRequest` and `AskResponse` models in `micro_agent/server.py`.
-- Health: `GET /health` returns `{status, provider, model, max_steps}`.
-- Minimal health: `GET /healthz` returns `{status: "ok"}`.
-- Version: `GET /version` returns `{name, version}`.
 
 ## Tools
 - Built-ins live in `micro_agent/tools.py`:
@@ -106,6 +99,9 @@ Tool(
 
 Runtime validation
 - Tool args are validated against the JSON Schema before execution; invalid args add a `⛔️validation_error` step and the agent requests a correction in the next loop. See `micro_agent/tools.py` (run_tool) and `micro_agent/agent.py` (validation error handling).
+
+Calculator limits
+- Factorial capped at 12; exponent size bounded; AST node count limited; large magnitudes rejected to prevent runaway compute. Only a small set of arithmetic nodes is allowed.
 
 
 ## Provider Modes
@@ -191,7 +187,7 @@ The agent loads these demos on OpenAI providers and attaches them to the `PlanWi
   - Optional install: `pip install -e .[repair]`
 
 ## Limitations and Next Steps
-- Costs/usage are not recorded; you can plumb LM usage metadata into the eval harness if your wrapper exposes it.
+- Usage/cost capture is best-effort: exact numbers depend on provider support; otherwise the agent estimates from text.
 - The finalization step often composes from tool results for reliability; you can swap in a DSPy `Finalize` predictor if preferred.
 - Add persistence to a DB instead of JSONL by replacing `dump_trace`.
 - Add human-in-the-loop, budgets, retries, or branching per your needs.
