@@ -138,13 +138,16 @@ Code references (discoverability)
 Notes: For this small dataset, demos neither help nor hurt. For larger flows, compile demos from your real tasks.
 
 ### Cost & Tokens
-- The agent aggregates token counts and cost (when available). If provider usage isn’t exposed, it estimates tokens from prompts/outputs and computes cost using env prices.
+- The agent aggregates token counts and cost. If provider usage isn’t exposed, it estimates tokens from prompts/outputs and computes cost using prices.
 - Set env prices for OpenAI models (USD per 1K tokens):
 ```bash
 export OPENAI_INPUT_PRICE_PER_1K=0.005  # example
 export OPENAI_OUTPUT_PRICE_PER_1K=0.015 # example
 ```
-The eval script will include `avg_cost_usd`. Defaults to 0 if prices aren’t set.
+Defaults: for OpenAI models, built‑in prices are used if env isn’t set (best‑effort):
+- gpt-4o-mini: $0.00015 in / $0.0006 out per 1K tokens
+- gpt-4o (and 4.1): $0.005 in / $0.015 out per 1K tokens
+You can override via the env vars above. Evals print `avg_cost_usd`.
 
 ## Optimize (Teleprompting)
 - Compile optimized few-shot demos for the OpenAI `PlanWithTools` planner and save to JSON:

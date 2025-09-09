@@ -196,20 +196,20 @@ class MicroAgent(dspy.Module):
                 # Accumulate usage from DSPy prediction (OpenAI path)
                 try:
                     usage = pred.get_lm_usage() or {}
+                    in_tok = int(usage.get('input_tokens', 0) or 0)
+                    out_tok = int(usage.get('output_tokens', 0) or 0)
                     total_cost += float(usage.get('cost', 0.0) or 0.0)
-                    total_in_tokens += int(usage.get('input_tokens', 0) or 0)
-                    total_out_tokens += int(usage.get('output_tokens', 0) or 0)
-                except Exception:
-                    pass
-                # Heuristic fallback: estimate using a reconstructed prompt & result
-                try:
-                    approx_prompt = self._decision_prompt(
-                        question=question,
-                        state_json=json.dumps(state, ensure_ascii=False),
-                        tools_json=json.dumps(self._tool_list, ensure_ascii=False),
-                    )
-                    approx_out = getattr(pred, 'final', None) or (str(getattr(pred, 'tool_calls', '')))
-                    _accumulate_usage(approx_prompt, approx_out)
+                    total_in_tokens += in_tok
+                    total_out_tokens += out_tok
+                    # Only if usage tokens are both zero, use heuristic fallback
+                    if in_tok == 0 and out_tok == 0:
+                        approx_prompt = self._decision_prompt(
+                            question=question,
+                            state_json=json.dumps(state, ensure_ascii=False),
+                            tools_json=json.dumps(self._tool_list, ensure_ascii=False),
+                        )
+                        approx_out = getattr(pred, 'final', None) or (str(getattr(pred, 'tool_calls', '')))
+                        _accumulate_usage(approx_prompt, approx_out)
                 except Exception:
                     pass
 

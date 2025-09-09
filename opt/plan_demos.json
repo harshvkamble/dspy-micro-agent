@@ -11,44 +11,5 @@
       }
     ],
     "final": null
-  },
-  {
-    "question": "What time is it right now? Use UTC.",
-    "state": "[]",
-    "tool_calls": [
-      {
-        "name": "now",
-        "args": {
-          "timezone": "utc"
-        }
-      }
-    ],
-    "final": null
-  },
-  {
-    "question": "What time is it right now? Use UTC.",
-    "state": "[]",
-    "tool_calls": [
-      {
-        "name": "now",
-        "args": {
-          "timezone": "utc"
-        }
-      }
-    ],
-    "final": null
-  },
-  {
-    "question": "What time is it right now? Use UTC.",
-    "state": "[]",
-    "tool_calls": [
-      {
-        "name": "now",
-        "args": {
-          "timezone": "utc"
-        }
-      }
-    ],
-    "final": null
   }
 ]
