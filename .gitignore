@@ -1,0 +1,19 @@
+# envs / caches
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+
+# local config
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# traces and logs
+traces/
+
+# uv / lockfiles (optional keep)
+uv.lock
+

@@ -1,0 +1,29 @@
+[project]
+name = "dspy-micro-agent"
+version = "0.1.0"
+description = "DSPy-based micro agent: modules + thin runtime loop"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "dspy-ai>=2.5.0",
+  "openai>=1.40.0",
+  "pydantic>=2.7.0",
+  "fastapi>=0.111.0",
+  "uvicorn>=0.30.0",
+  "python-dotenv>=1.0.1",
+  "rich>=13.7.0",
+  "pyyaml>=6.0.0"
+]
+
+[project.scripts]
+micro-agent = "micro_agent.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["micro_agent*"]

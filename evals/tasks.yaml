@@ -1,0 +1,18 @@
+# Each item: a question and a minimal expectation check.
+- question: "What's 2*(3+5)? Return only the number."
+  expect_contains: "16"
+
+- question: "What time is it right now? Use UTC."
+  expect_key: "iso"   # we will accept ISO in tool output summarized to user
+
+- question: "Compute (7**2 + 14) / 5 and explain briefly."
+  expect_contains: "12.6"
+
+- question: "Add 12345 and 67890, then tell me the current date (UTC)."
+  expect_contains: "80235"
+
+- question: "If I spend $12.50 daily for 9 days, what's the total?"
+  expect_contains: "112.5"
+
+- question: "What's 9! / (3!*3!*3!)? Just the integer."
+  expect_contains: "1680"

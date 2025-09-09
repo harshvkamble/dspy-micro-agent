@@ -1,0 +1,6 @@
+# Simple rule-based rubric:
+# - contains: substring must appear in final answer
+# - key: check a specific field in the trace observations (demonstration only)
+contains_weight: 1.0
+key_weight: 0.0
+
