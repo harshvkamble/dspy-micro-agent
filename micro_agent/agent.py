@@ -382,7 +382,18 @@ class MicroAgent(dspy.Module):
                 if must_time and not used_tool(state, "now"):
                     state.append({"tool": "⛔️policy_violation", "args": {}, "observation": "Finalize attempted before now."})
                     continue
-                p = dspy.Prediction(answer=decision["final"]["answer"], trace=state)
+                # Prefer composing from tool results when available to ensure answers include key values.
+                calculators = [s for s in state if s.get("tool") == "calculator" and isinstance(s.get("observation"), dict)]
+                nows = [s for s in state if s.get("tool") == "now" and isinstance(s.get("observation"), dict)]
+                composed_parts = []
+                if calculators:
+                    composed_parts.append(str(calculators[0]["observation"].get("result")))
+                if nows:
+                    iso = nows[-1]["observation"].get("iso")
+                    if iso:
+                        composed_parts.append(f"UTC: {iso}")
+                final_text = " | ".join(composed_parts) if composed_parts else decision["final"].get("answer", "")
+                p = dspy.Prediction(answer=final_text, trace=state)
                 p.usage = {
                     "lm_calls": lm_calls,
                     "tool_calls": tool_calls,
