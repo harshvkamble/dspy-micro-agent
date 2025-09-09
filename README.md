@@ -82,6 +82,22 @@ OpenAPI:
 - FastAPI publishes `/openapi.json` and interactive docs at `/docs`.
 - Schemas reflect `AskRequest` and `AskResponse` models in `micro_agent/server.py`.
 
+### API Examples
+- Ask, capture `trace_id`, then fetch the full trace by id:
+```bash
+RESP=$(curl -s http://localhost:8000/ask \
+  -H 'content-type: application/json' \
+  -d '{"question":"Add 12345 and 67890, then UTC time.","max_steps":6}')
+echo "$RESP" | jq .
+TID=$(echo "$RESP" | jq -r .trace_id)
+curl -s http://localhost:8000/trace/$TID | jq .
+```
+
+- Replay the saved JSONL locally using the CLI (last record by default index -1):
+```bash
+micro-agent replay --path traces/$TID.jsonl --index -1
+```
+
 ## Tools
 - Built-ins live in `micro_agent/tools.py`:
   - `calculator`: safe expression evaluator. Supports `+ - * / ** % // ( )` and `!` via rewrite to `fact(n)`.
