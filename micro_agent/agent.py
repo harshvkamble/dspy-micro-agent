@@ -78,6 +78,8 @@ class MicroAgent(dspy.Module):
 
     def forward(self, question: str):
         import re
+        lm_calls = 0
+        tool_calls = 0
 
         def needs_math(q: str) -> bool:
             ql = q.lower()
@@ -113,6 +115,7 @@ class MicroAgent(dspy.Module):
             planner = dspy.Predict(PlanWithTools)
 
             for _ in range(self.max_steps):
+                lm_calls += 1  # one planner call per loop
                 pred = planner(
                     question=question,
                     state=json.dumps(state, ensure_ascii=False),
@@ -131,6 +134,7 @@ class MicroAgent(dspy.Module):
                             continue
                         obs = run_tool(name, args)
                         state.append({"tool": name, "args": args, "observation": obs})
+                        tool_calls += 1
                         executed_any = True
 
                 # Check finalization.
@@ -143,7 +147,14 @@ class MicroAgent(dspy.Module):
                     if must_time and not used_tool(state, "now"):
                         state.append({"tool": "⛔️policy_violation", "args": {}, "observation": "Finalize before now (OpenAI path)."})
                         continue
-                    return dspy.Prediction(answer=final, trace=state)
+                    p = dspy.Prediction(answer=final, trace=state)
+                    p.usage = {
+                        "lm_calls": lm_calls,
+                        "tool_calls": tool_calls,
+                        "provider": self._provider,
+                        "model": getattr(self.lm, "model", None),
+                    }
+                    return p
 
                 # If no tool and no final, gently nudge by adding a malformed marker.
                 if not executed_any:
@@ -160,9 +171,17 @@ class MicroAgent(dspy.Module):
                 iso = nows[-1]["observation"].get("iso")
                 if iso:
                     parts.append(f"UTC: {iso}")
-            return dspy.Prediction(answer=" | ".join([p for p in parts if p]), trace=state)
+            p = dspy.Prediction(answer=" | ".join([p for p in parts if p]), trace=state)
+            p.usage = {
+                "lm_calls": lm_calls,
+                "tool_calls": tool_calls,
+                "provider": self._provider,
+                "model": getattr(self.lm, "model", None),
+            }
+            return p
         # Path B: Ollama-friendly loop via raw LM completions and robust JSON parsing.
         for _ in range(self.max_steps):
+            lm_calls += 1
             raw = self.lm(
                 prompt=self._decision_prompt(
                     question=question,
@@ -176,6 +195,7 @@ class MicroAgent(dspy.Module):
             try:
                 decision = parse_decision_text(decision_text)
             except Exception:
+                lm_calls += 1
                 raw = self.lm(
                     prompt=self._decision_prompt(
                         question=question,
@@ -202,7 +222,14 @@ class MicroAgent(dspy.Module):
                 if must_time and not used_tool(state, "now"):
                     state.append({"tool": "⛔️policy_violation", "args": {}, "observation": "Finalize attempted before now."})
                     continue
-                return dspy.Prediction(answer=decision["final"]["answer"], trace=state)
+                p = dspy.Prediction(answer=decision["final"]["answer"], trace=state)
+                p.usage = {
+                    "lm_calls": lm_calls,
+                    "tool_calls": tool_calls,
+                    "provider": self._provider,
+                    "model": getattr(self.lm, "model", None),
+                }
+                return p
 
             if "tool" in decision:
                 tool_desc = decision["tool"]
@@ -214,6 +241,7 @@ class MicroAgent(dspy.Module):
                     args = decision.get("args", {}) or {}
                 obs = run_tool(name, args)
                 state.append({"tool": name, "args": args, "observation": obs})
+                tool_calls += 1
                 continue
 
             # Model produced something unexpected: record and continue.
@@ -253,6 +281,7 @@ class MicroAgent(dspy.Module):
                     parts.append(f"UTC: {iso}")
             ans = " | ".join(parts) if parts else ""
         else:
+            lm_calls += 1
             raw = self.lm(
                 prompt=(
                     "Given the question and the trace of tool observations, write the final answer.\n\n"
@@ -261,4 +290,11 @@ class MicroAgent(dspy.Module):
                 )
             )
             ans = raw[0] if isinstance(raw, list) else (raw if isinstance(raw, str) else str(raw))
-        return dspy.Prediction(answer=ans, trace=state)
+        p = dspy.Prediction(answer=ans, trace=state)
+        p.usage = {
+            "lm_calls": lm_calls,
+            "tool_calls": tool_calls,
+            "provider": self._provider,
+            "model": getattr(self.lm, "model", None),
+        }
+        return p

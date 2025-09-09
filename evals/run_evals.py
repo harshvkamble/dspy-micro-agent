@@ -33,7 +33,8 @@ def main():
     # Expand to ~N items
     dataset = (tasks * ((args.n + len(tasks) - 1) // len(tasks)))[:args.n]
 
-    scores, latencies, costs = [], [], []  # costs optional; if LM exposes usage, record it.
+    scores, latencies = [], []
+    lm_calls_list, tool_calls_list, steps_list = [], [], []
 
     for i, item in enumerate(dataset, 1):
         q = item["question"]
@@ -47,17 +48,23 @@ def main():
         s = score_answer(pred.answer, item)
         scores.append(s)
         latencies.append(dt)
-        # If your LM wrapper exposes usage/cost, add it here. DSPy wrappers often attach metadata.
+        # Basic usage tracking (provided by MicroAgent)
+        usage = getattr(pred, "usage", {}) or {}
+        lm_calls_list.append(int(usage.get("lm_calls", 0) or 0))
+        tool_calls_list.append(int(usage.get("tool_calls", 0) or 0))
+        steps_list.append(len(pred.trace or []))
 
         print(f"[{i}/{len(dataset)}] s={s} t={dt:.2f}s  q={q!r}")
 
     print("\n=== METRICS ===")
     print(json.dumps({
-        "success_rate": mean(scores),
-        "avg_latency_sec": mean(latencies),
+        "success_rate": mean(scores) if scores else 0.0,
+        "avg_latency_sec": mean(latencies) if latencies else 0.0,
+        "avg_lm_calls": mean(lm_calls_list) if lm_calls_list else 0.0,
+        "avg_tool_calls": mean(tool_calls_list) if tool_calls_list else 0.0,
+        "avg_steps": mean(steps_list) if steps_list else 0.0,
         "n": len(dataset),
     }, indent=2))
 
 if __name__ == "__main__":
     main()
-

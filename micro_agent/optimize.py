@@ -17,8 +17,12 @@ from typing import List, Dict, Any
 
 import dspy
 
+from dspy.teleprompt import BootstrapFewShot
+from dspy.primitives.example import Example
+
 from .config import configure_lm
-from .agent import MicroAgent
+from .signatures import PlanWithTools
+from .tools import to_dspy_tools
 
 
 def _run_quick_eval(n: int = 12, tasks_path: str = "evals/tasks.yaml") -> Dict[str, Any]:
@@ -31,6 +35,7 @@ def _run_quick_eval(n: int = 12, tasks_path: str = "evals/tasks.yaml") -> Dict[s
     # Repeat/trim to n
     dataset = (tasks * ((n + len(tasks) - 1) // len(tasks)))[:n]
 
+    from .agent import MicroAgent
     agent = MicroAgent(max_steps=6)
     scores, latencies = [], []
     for i, item in enumerate(dataset, 1):
@@ -94,6 +99,92 @@ optimized = tp.compile(Planner())
 """
 
 
+def _serialize_tool_calls(tc) -> list[dict] | None:
+    try:
+        if tc is None:
+            return None
+        if hasattr(tc, 'tool_calls'):
+            return [
+                {"name": getattr(call, 'name', None), "args": getattr(call, 'args', {})}
+                for call in tc.tool_calls
+            ]
+        if isinstance(tc, list):
+            return tc
+    except Exception:
+        return None
+    return None
+
+
+def _compile_and_save(n: int, tasks_path: str, save_path: str) -> dict:
+    import yaml
+    with open(tasks_path, "r", encoding="utf-8") as f:
+        tasks = yaml.safe_load(f)
+
+    dataset = tasks[:]
+    dspy_tools = to_dspy_tools()
+
+    class Planner(dspy.Module):
+        def __init__(self):
+            super().__init__()
+            self.decide = dspy.Predict(PlanWithTools)
+        def forward(self, question: str, state: str = "[]", tools=None):
+            tools = tools if tools is not None else dspy_tools
+            return self.decide(question=question, state=state, tools=tools)
+
+    def metric(example, pred, trace):
+        q = example.get('question', '')
+        expect = example.get('expect_contains')
+        score = 0.0
+        calls = getattr(pred, 'tool_calls', None)
+        if any(ch.isdigit() for ch in q) and calls:
+            score += 0.5
+        if ("time" in q.lower() or "utc" in q.lower()) and calls:
+            score += 0.5
+        fin = getattr(pred, 'final', '') or ''
+        if expect and expect in str(fin):
+            score += 1.0
+        return score
+
+    # Build trainset Examples
+    trainset: List[Example] = []
+    # Repeat to hit at least n
+    full = (dataset * ((n + len(dataset) - 1) // len(dataset)))[:n]
+    for item in full:
+        q = item.get('question')
+        ex = Example(question=q, state='[]', tools=dspy_tools, expect_contains=item.get('expect_contains'))
+        ex = ex.with_inputs('question', 'state', 'tools')
+        trainset.append(ex)
+
+    tele = BootstrapFewShot(metric=metric, max_bootstrapped_demos=8, max_labeled_demos=8, max_rounds=1)
+    compiled = tele.compile(Planner(), trainset=trainset)
+
+    # Extract demos from the compiled predictor
+    demos = []
+    for demo in getattr(compiled.decide, 'demos', []) or []:
+        try:
+            inputs = demo.inputs().toDict()  # question/state/tools (tools omitted at save)
+        except Exception:
+            inputs = {}
+        try:
+            labels = demo.labels().toDict()
+        except Exception:
+            labels = {}
+
+        record = {
+            "question": inputs.get("question"),
+            "state": inputs.get("state", "[]"),
+            "tool_calls": _serialize_tool_calls(labels.get("tool_calls")),
+            "final": labels.get("final"),
+        }
+        demos.append(record)
+
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+    with open(save_path, "w", encoding="utf-8") as f:
+        json.dump(demos, f, indent=2, ensure_ascii=False)
+
+    return {"saved": save_path, "count": len(demos)}
+
+
 def optimize_cli(args: argparse.Namespace):
     configure_lm()
     provider = os.getenv("LLM_PROVIDER", "openai").lower()
@@ -104,20 +195,27 @@ def optimize_cli(args: argparse.Namespace):
     print(json.dumps(baseline, indent=2))
 
     if provider != "openai":
-        print("\nNote: Teleprompting template is optimized for OpenAI providers.")
+        print("\nNote: On non-OpenAI providers teleprompting may be less effective.")
 
-    print("\n=== Teleprompting Template (copy/paste into a notebook) ===\n")
-    print(TEMPLATE)
+    if getattr(args, 'save', None):
+        print(f"\nCompiling optimized planner demos to {args.save} ...")
+        res = _compile_and_save(n=args.n, tasks_path=args.tasks, save_path=args.save)
+        print(json.dumps(res, indent=2))
+
+    if getattr(args, 'template', False):
+        print("\n=== Teleprompting Template (copy/paste into a notebook) ===\n")
+        print(TEMPLATE)
 
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--n", type=int, default=12)
     p.add_argument("--tasks", default="evals/tasks.yaml")
+    p.add_argument("--save", default="opt/plan_demos.json")
+    p.add_argument("--template", action="store_true")
     args = p.parse_args()
     optimize_cli(args)
 
 
 if __name__ == "__main__":
     main()
-

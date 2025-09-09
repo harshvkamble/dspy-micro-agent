@@ -1,157 +1,144 @@
 # DSPy Micro Agent
 
-Minimal agent runtime using **DSPy** modules.
-- Plan/Act/Finalize implemented as DSPy `Signature`s.
-- Thin Python loop for tool routing and trace persistence.
-- CLI + FastAPI server.
-- Eval harness.
+Minimal agent runtime built with DSPy modules and a thin Python loop.
+- Plan/Act/Finalize expressed as DSPy `Signature`s, with OpenAI-native tool-calling when available.
+- Thin runtime (`agent.py`) handles looping, tool routing, and trace persistence.
+- CLI and FastAPI server, plus a tiny eval harness.
 
 ## Quickstart
+- Python 3.10+
+- Create a virtualenv and install (using `uv`, or see pip alternative below):
 ```bash
 uv venv && source .venv/bin/activate
 uv pip install -e .
-cp .env.example .env  # set OPENAI_API_KEY
-micro-agent ask --question "What's 2*(3+5)? Use UTC for time."
+cp .env.example .env  # set OPENAI_API_KEY or configure Ollama
+
+# Ask a question (append --utc to nudge UTC use when time is relevant)
+micro-agent ask --question "What's 2*(3+5)?" --utc
+
+# Run the API server
 uvicorn micro_agent.server:app --reload --port 8000
+
+# Run quick evals (repeat small dataset)
 python evals/run_evals.py --n 50
 ```
 
-## Replace or extend tools
+Pip alternative:
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
+```
 
-Edit `micro_agent/tools.py`. Each tool:
+## Configuration
+- `.env` is loaded automatically (via `python-dotenv`).
+- Set one of the following provider configs:
+  - OpenAI (default): `OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4o-mini`)
+  - Ollama: `LLM_PROVIDER=ollama`, `OLLAMA_MODEL` (e.g. `llama3.2:1b`), `OLLAMA_HOST` (default `http://localhost:11434`)
+- Optional tuning: `TEMPERATURE` (default `0.2`), `MAX_TOKENS` (default `1024`)
+- Tool plugins: `TOOLS_MODULES="your_pkg.tools,other_pkg.tools"` to load extra tools (see Tools below)
+- Traces location: `TRACES_DIR` (default `traces/`)
 
+Examples:
+```bash
+# OpenAI
+export OPENAI_API_KEY=...
+export OPENAI_MODEL=gpt-4o-mini
+
+# Ollama
+export LLM_PROVIDER=ollama
+export OLLAMA_MODEL=llama3.2:1b
+export OLLAMA_HOST=http://localhost:11434
+```
+
+## CLI
+- `micro-agent ask --question <text> [--utc] [--max-steps N]`
+  - `--utc` appends a hint to prefer UTC when time is used.
+  - Saves a JSONL trace under `traces/<id>.jsonl` and prints the path.
+- `micro-agent replay --path traces/<id>.jsonl [--index -1]`
+  - Pretty-prints a saved record from the JSONL file.
+
+Examples:
+```bash
+micro-agent ask --question "Add 12345 and 67890, then show the current date (UTC)." --utc
+micro-agent ask --question "Compute (7**2 + 14)/5 and explain briefly." --max-steps 4
+micro-agent replay --path traces/<id>.jsonl --index -1
+```
+
+## HTTP API
+- Start: `uvicorn micro_agent.server:app --reload --port 8000`
+- Endpoint: `POST /ask`
+  - Request JSON: `{ "question": "...", "max_steps": 6 }`
+  - Response JSON: `{ "answer": str, "trace_id": str, "trace_path": str, "steps": [...] }`
+
+Example:
+```bash
+curl -s http://localhost:8000/ask \
+  -H 'content-type: application/json' \
+  -d '{"question":"What\'s 2*(3+5)?","max_steps":6}' | jq .
+```
+
+OpenAPI:
+- FastAPI publishes `/openapi.json` and interactive docs at `/docs`.
+- Schemas reflect `AskRequest` and `AskResponse` models in `micro_agent/server.py`.
+
+## Tools
+- Built-ins live in `micro_agent/tools.py`:
+  - `calculator`: safe expression evaluator. Supports `+ - * / ** % // ( )` and `!` via rewrite to `fact(n)`.
+  - `now`: current timestamp; `{timezone: "utc"|"local"}` (default local).
+- Each tool is defined as:
 ```
 Tool(
   "name",
   "description",
   {"type":"object","properties":{...},"required":[...]},
-  handler_function
+  handler_function,
 )
 ```
+- Plugins: set `TOOLS_MODULES` to a comma-separated list of importable modules. Each module should expose either a `TOOLS: dict[str, Tool]` or a `get_tools() -> dict[str, Tool]`.
 
----
+## Provider Modes
+- OpenAI: uses DSPy `PlanWithTools` with `JSONAdapter` to enable native function-calls. The model may return `tool_calls` or a `final` answer; tool calls are executed via our registry.
+- Others (e.g., Ollama): uses a robust prompt with few-shot JSON decision demos. Decisions are parsed with strict JSON; on failure we try `json_repair` (if installed) and Python-literal parsing.
+- Policy enforcement: if the question implies math, the agent requires a `calculator` step before finalizing; likewise for time/date with the `now` tool. Violations are recorded in the trace as `⛔️policy_violation` steps and planning continues.
 
-## How it proves the point
+## Tracing
+- Each run appends a record to `traces/<id>.jsonl` with fields: `id`, `ts`, `question`, `steps`, `answer`.
+- Steps are `{tool, args, observation}` in order of execution.
+- Replay: `micro-agent replay --path traces/<id>.jsonl --index -1`.
 
-- Planning + acting: `PlanOrAct` and `Finalize` are pure DSPy modules.
-- “Agent framework”: The runtime is ~100 LOC in `agent.py` (loop, tool execution, trace list).
-- Observability: JSONL traces on disk; easy to ship into your logging stack.
-- Evals: dataset + rubric shows measurable success/latency; swap in your real tasks.
+## Evals
+- Dataset: `evals/tasks.yaml` (small, mixed math/time tasks). Rubric: `evals/rubrics.yaml`.
+- Run: `python evals/run_evals.py --n 50`.
+- Metrics printed: `success_rate`, `avg_latency_sec`, `avg_lm_calls`, `avg_tool_calls`, `avg_steps`, `n`.
 
----
+## Architecture
+- `micro_agent/config.py`: configures DSPy LM. Tries Ollama first if requested, else OpenAI; supports `dspy.Ollama`, `dspy.OpenAI`, and registry fallbacks like `dspy.LM("openai/<model>")`.
+- `micro_agent/signatures.py`: DSPy `Signature`s for plan/act/finalize and OpenAI tool-calls.
+- `micro_agent/agent.py`: the runtime loop (~100+ LOC). Builds a JSON decision prompt, executes tools, enforces policy, and finalizes.
+- `micro_agent/runtime.py`: trace format, persistence, and robust JSON decision parsing utilities.
+- `micro_agent/cli.py`: CLI entry (`micro-agent`).
+- `micro_agent/server.py`: FastAPI app exposing `POST /ask`.
+- `evals/`: tiny harness to sample tasks, capture metrics, and save traces.
 
-## Extension hooks (optional)
+## Development
+- Make targets: `make init`, `make run`, `make serve`, `make evals`, `make test`.
+- Tests: `pytest -q` (note: tests are minimal and do not cover all paths).
 
-- Durability: replace `dump_trace` with a DB (SQLite/Postgres). Add a `checkpoint(state)` every step.
-- Human‑in‑the‑loop: insert a pause after selected steps; await approval before continuing.
-- Parallel branches: spawn multiple tool calls by forking the loop state; merge with a simple reducer.
-- Budgets: add counters for token/cost ceilings; if exceeded, force finalize.
-- Retry policy: wrap `run_tool` with backoff + jitter; add circuit‑breaker flags in the state.
+## Docker
+- Build: `make docker-build`
+- Run (OpenAI): `OPENAI_API_KEY=... make docker-run` (maps `:8000`)
+- Run (Ollama on host): `make docker-run-ollama` (uses `host.docker.internal:11434`)
+- Service: `POST http://localhost:8000/ask` (see HTTP API above)
 
----
+## Compatibility Notes
+- DSPy is pinned to `dspy-ai>=2.5.0`. Some adapters (e.g., `JSONAdapter`, `dspy.Ollama`) may vary across versions; the code tries multiple backends and falls back to generic registry forms when needed.
+- If `json_repair` is installed, it is used opportunistically to salvage slightly malformed JSON decisions.
 
-## Unknowns to resolve (labelled)
-
-1) DSPy version you’ll pin to (APIs occasionally shift).  
-2) Model provider you prefer (OpenAI default here; Anthropic config is a 5‑line tweak in `config.py` if your DSPy build supports `dspy.Anthropic`).
-
----
-
-### Suggested first run (copy/paste)
-
-```bash
-# fresh dir
-mkdir dspy-micro-agent && cd dspy-micro-agent
-# paste files according to the structure above (or hand this spec to your code assistant)
-uv venv && source .venv/bin/activate
-uv pip install -e .
-cp .env.example .env && $EDITOR .env   # set OPENAI_API_KEY
-
-micro-agent ask --question "Compute (7**2 + 14)/5 and explain briefly; prefer UTC time if used."
-python evals/run_evals.py --n 24
-uvicorn micro_agent.server:app --reload --port 8000
-```
-
-## Improvements inspired by DSPy tutorials
-
-- Provider-aware adapters: OpenAI can use DSPy `Predict(Signature)` with JSON adapters; Ollama path uses direct LM prompts + robust JSON repair when models drift.
-- Few-shot guidance: The planner prompt includes compact JSON decision demos to stabilize tool selection and formatting.
-- Teleprompt-ready: You can plug in `dspy.teleprompt` (e.g., `BootstrapFewShot`) to optimize signatures when using OpenAI providers.
-- Extensible tools: Load extra tool modules by setting `TOOLS_MODULES="your_pkg.tools,other_pkg.tools"` (each module exposes a `TOOLS` dict or `get_tools()`).
-- Replay: `micro-agent replay --path traces/<id>.jsonl` prints the saved run for inspection or debugging.
-
-### Using Ollama
-```bash
-export LLM_PROVIDER=ollama
-export OLLAMA_MODEL=llama3.1:8b   # pick an installed model
-micro-agent ask --question "Add 12345 and 67890, then UTC date?" --utc
-```
-
-### Using OpenAI
-```bash
-export OPENAI_API_KEY=...
-export OPENAI_MODEL=gpt-4o-mini
-micro-agent ask --question "Compute (7**2+14)/5 and explain briefly"
-```
-
-### Optimize (Teleprompting) Stub
-
-Run a quick baseline and print a copy/paste teleprompting template tailored for OpenAI tool-calls:
-
-```bash
-micro-agent optimize --n 12
-```
-
-The template shows how to use `dspy.teleprompt.BootstrapFewShot` over a thin `Planner` that wraps `PlanWithTools`.
-
-## OpenAI Tool-Calls Mode
-
-- When `LLM_PROVIDER=openai` is active, the agent uses DSPy `PlanWithTools` with `JSONAdapter` to enable native function calling.
-- Inputs: `question`, `state` (JSON trace), `tools: list[dspy.Tool]` (from our registry).
-- Outputs: `tool_calls: dspy.ToolCalls` (executed via our registry) or `final: str`.
-- This matches the DSPy Tool-Use tutorial pattern and yields robust tool selection on OpenAI.
-
-Enable and run:
-```bash
-export LLM_PROVIDER=openai
-export OPENAI_MODEL=gpt-4o-mini
-micro-agent ask --question "Add 12345 and 67890, then tell me the current date (UTC)." --utc
-```
-
-## Trace Format
-
-- Each run persists a JSONL record in `traces/<id>.jsonl`:
-- Fields: `id`, `ts`, `question`, `steps`, `answer`.
-- Steps are `{tool, args, observation}` entries in order.
-
-Example step:
-```json
-{
-  "tool": "calculator",
-  "args": {"expression": "12345 + 67890"},
-  "observation": {"result": 80235}
-}
-```
-
-Replay a trace:
-```bash
-micro-agent replay --path traces/<id>.jsonl --index -1
-```
-
-## Eval Results
-
-- OpenAI (gpt-4o-mini, n=50):
-  - success_rate: 1.00
-  - avg_latency_sec: ~0.38
-
-- Ollama (llama3.1:8b, n=18):
-  - success_rate: 1.00
-  - avg_latency_sec: ~1.03
-
-
-
----
+## Limitations and Next Steps
+- Costs/usage are not recorded; you can plumb LM usage metadata into the eval harness if your wrapper exposes it.
+- The finalization step often composes from tool results for reliability; you can swap in a DSPy `Finalize` predictor if preferred.
+- Add persistence to a DB instead of JSONL by replacing `dump_trace`.
+- Add human-in-the-loop, budgets, retries, or branching per your needs.
 
 ## Objective
-
-Prove: “An agent is just DSPy modules + a thin runtime loop.”
+Prove: an “agent” can be expressed as DSPy modules plus a thin runtime loop.
