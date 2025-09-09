@@ -21,6 +21,10 @@ def main():
     r.add_argument("--path", required=True, help="Path to a trace .jsonl file")
     r.add_argument("--index", type=int, default=-1, help="Record index in the file (default last)")
 
+    o = sub.add_parser("optimize", help="Run a quick baseline and print a DSPy teleprompting template")
+    o.add_argument("--n", type=int, default=12)
+    o.add_argument("--tasks", default="evals/tasks.yaml")
+
     args = parser.parse_args()
 
     configure_lm()
@@ -34,6 +38,11 @@ def main():
         idx = args.index if args.index >= 0 else len(lines)-1
         rec = json.loads(lines[idx])
         console.print(Panel.fit(Syntax(json.dumps(rec, indent=2, ensure_ascii=False), "json"), title=f"REPLAY {idx} : {args.path}"))
+        return
+
+    if args.cmd == "optimize":
+        from . import optimize as opt
+        opt.optimize_cli(args)
         return
 
     agent = MicroAgent(max_steps=args.max_steps)

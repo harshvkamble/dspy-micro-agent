@@ -94,6 +94,16 @@ export OPENAI_MODEL=gpt-4o-mini
 micro-agent ask --question "Compute (7**2+14)/5 and explain briefly"
 ```
 
+### Optimize (Teleprompting) Stub
+
+Run a quick baseline and print a copy/paste teleprompting template tailored for OpenAI tool-calls:
+
+```bash
+micro-agent optimize --n 12
+```
+
+The template shows how to use `dspy.teleprompt.BootstrapFewShot` over a thin `Planner` that wraps `PlanWithTools`.
+
 ## OpenAI Tool-Calls Mode
 
 - When `LLM_PROVIDER=openai` is active, the agent uses DSPy `PlanWithTools` with `JSONAdapter` to enable native function calling.
