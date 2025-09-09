@@ -1,6 +1,6 @@
 [project]
 name = "dspy-micro-agent"
-version = "0.1.0"
+version = "0.1.1"
 description = "DSPy-based micro agent: modules + thin runtime loop"
 readme = "README.md"
 requires-python = ">=3.10"

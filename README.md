@@ -85,7 +85,9 @@ curl -s http://localhost:8000/ask \
 OpenAPI:
 - FastAPI publishes `/openapi.json` and interactive docs at `/docs`.
 - Schemas reflect `AskRequest` and `AskResponse` models in `micro_agent/server.py`.
- - Health: `GET /health` returns `{status, provider, model, max_steps}`.
+- Health: `GET /health` returns `{status, provider, model, max_steps}`.
+- Minimal health: `GET /healthz` returns `{status: "ok"}`.
+- Version: `GET /version` returns `{name, version}`.
 
 ## Tools
 - Built-ins live in `micro_agent/tools.py`:
