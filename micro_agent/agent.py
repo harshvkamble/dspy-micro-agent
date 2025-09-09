@@ -176,7 +176,14 @@ class MicroAgent(dspy.Module):
                     state=json.dumps(state, ensure_ascii=False),
                     tools=dspy_tools,
                 )
-                _accumulate_usage()
+                # Accumulate usage from DSPy prediction (OpenAI path)
+                try:
+                    usage = pred.get_lm_usage() or {}
+                    total_cost += float(usage.get('cost', 0.0) or 0.0)
+                    total_in_tokens += int(usage.get('input_tokens', 0) or 0)
+                    total_out_tokens += int(usage.get('output_tokens', 0) or 0)
+                except Exception:
+                    pass
 
                 # If tool calls are proposed, execute them.
                 calls = getattr(pred, 'tool_calls', None)

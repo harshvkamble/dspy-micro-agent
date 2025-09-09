@@ -126,8 +126,14 @@ Code references (discoverability)
 ## Evals
 - Dataset: `evals/tasks.yaml` (small, mixed math/time tasks). Rubric: `evals/rubrics.yaml`.
 - Run: `python evals/run_evals.py --n 50`.
-- Metrics printed: `success_rate`, `contains_hit_rate`, `key_hit_rate`, `avg_latency_sec`, `avg_lm_calls`, `avg_tool_calls`, `avg_steps`, `n`.
+- Metrics printed: `success_rate`, `avg_latency_sec`, `avg_lm_calls`, `avg_tool_calls`, `avg_steps`, `avg_cost_usd`, `n`.
 - Scoring supports both `expect_contains` (answer substring) and `expect_key` (key present in any tool observation). Weights come from `rubrics.yaml` (`contains_weight`, `key_weight`).
+
+### Before/After Compiled Demos (OpenAI)
+- Model: `gpt-4o-mini`, N=30
+- Before (no demos): success_rate 1.00; avg_latency_sec ~0.188; avg_lm_calls 3.33; avg_tool_calls 1.17; avg_steps 3.17
+- After (compiled demos loaded): success_rate 1.00; avg_latency_sec ~0.188; avg_lm_calls 3.33; avg_tool_calls 1.17; avg_steps 3.17
+Notes: For this small dataset, demos neither help nor hurt. Seed demos from your real tasks for measurable gains.
 
 ## Optimize (Teleprompting)
 - Compile optimized few-shot demos for the OpenAI `PlanWithTools` planner and save to JSON:

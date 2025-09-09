@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os, json
 from pydantic import BaseModel
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
 from .config import configure_lm
 from .agent import MicroAgent
 from .runtime import dump_trace, new_trace_id
@@ -29,6 +30,10 @@ class AskResponse(BaseModel):
 
 configure_lm()
 _agent = MicroAgent()
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 @app.get("/health")
 def health():
@@ -62,3 +67,11 @@ def get_trace(trace_id: str):
             except Exception:
                 continue
     return {"trace_id": trace_id, "path": path, "records": out}
+
+@app.get("/version")
+def api_version():
+    try:
+        ver = _pkg_version("dspy-micro-agent")
+    except PackageNotFoundError:
+        ver = "0.0.0"
+    return {"name": "dspy-micro-agent", "version": ver}
