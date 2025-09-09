@@ -6,6 +6,7 @@ from .config import configure_lm
 from .agent import MicroAgent
 from .runtime import dump_trace, new_trace_id
 from .costs import estimate_prediction_cost
+from .logging_setup import setup_logging
 
 console = Console()
 
@@ -33,6 +34,7 @@ def main():
 
     args = parser.parse_args()
 
+    setup_logging()
     configure_lm()
     if args.cmd == "replay":
         from rich.syntax import Syntax

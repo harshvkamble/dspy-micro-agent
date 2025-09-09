@@ -72,6 +72,7 @@ micro-agent replay --path traces/<id>.jsonl --index -1
 - Endpoint: `POST /ask`
   - Request JSON: `{ "question": "...", "max_steps": 6, "use_tool_calls": bool? }`
   - Response JSON: `{ "answer": str, "trace_id": str, "trace_path": str, "steps": [...], "usage": {...}, "cost_usd": number }`
+  - Health: `GET /healthz` (ok), `GET /health` (provider/model), `GET /version` (package version)
 
 Example:
 ```bash
@@ -99,6 +100,10 @@ curl -s http://localhost:8000/trace/$TID | jq .
 ```bash
 micro-agent replay --path traces/$TID.jsonl --index -1
 ```
+
+## Logging
+- Controlled via `MICRO_AGENT_LOG` (debug|info|warning|error). Default: `INFO`.
+- Applies to both CLI and server.
 
 ## Tools
 - Built-ins live in `micro_agent/tools.py`:

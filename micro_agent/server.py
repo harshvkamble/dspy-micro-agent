@@ -8,6 +8,7 @@ from importlib.metadata import version as _pkg_version, PackageNotFoundError
 from .config import configure_lm
 from .agent import MicroAgent
 from .runtime import dump_trace, new_trace_id
+from .logging_setup import setup_logging
 
 app = FastAPI(title="DSPy Micro Agent")
 app.add_middleware(
@@ -31,6 +32,7 @@ class AskResponse(BaseModel):
     usage: dict | None = None
     cost_usd: float | None = None
 
+setup_logging()
 configure_lm()
 _agent = MicroAgent()
 
