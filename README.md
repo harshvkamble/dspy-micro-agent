@@ -37,6 +37,7 @@ pip install -e .
 - Optional tuning: `TEMPERATURE` (default `0.2`), `MAX_TOKENS` (default `1024`)
 - Tool plugins: `TOOLS_MODULES="your_pkg.tools,other_pkg.tools"` to load extra tools (see Tools below)
 - Traces location: `TRACES_DIR` (default `traces/`)
+- Function-calls override: `USE_TOOL_CALLS=1|0` to force-enable/disable OpenAI function-calls mode
 
 Examples:
 ```bash
@@ -54,6 +55,9 @@ export OLLAMA_HOST=http://localhost:11434
 - `micro-agent ask --question <text> [--utc] [--max-steps N]`
   - `--utc` appends a hint to prefer UTC when time is used.
   - Saves a JSONL trace under `traces/<id>.jsonl` and prints the path.
+- Function-calls control:
+  - `--func-calls` forces OpenAI-native function-calls when available.
+  - `--no-func-calls` disables function-calls and uses robust JSON planning.
 - `micro-agent replay --path traces/<id>.jsonl [--index -1]`
   - Pretty-prints a saved record from the JSONL file.
 
@@ -69,6 +73,7 @@ micro-agent replay --path traces/<id>.jsonl --index -1
 - Endpoint: `POST /ask`
   - Request JSON: `{ "question": "...", "max_steps": 6 }`
   - Response JSON: `{ "answer": str, "trace_id": str, "trace_path": str, "steps": [...] }`
+  - Optional: `use_tool_calls: true|false` to force function-calls behavior.
 
 Example:
 ```bash
@@ -80,6 +85,7 @@ curl -s http://localhost:8000/ask \
 OpenAPI:
 - FastAPI publishes `/openapi.json` and interactive docs at `/docs`.
 - Schemas reflect `AskRequest` and `AskResponse` models in `micro_agent/server.py`.
+ - Health: `GET /health` returns `{status, provider, model, max_steps}`.
 
 ## Tools
 - Built-ins live in `micro_agent/tools.py`:
@@ -120,7 +126,8 @@ Code references (discoverability)
 ## Evals
 - Dataset: `evals/tasks.yaml` (small, mixed math/time tasks). Rubric: `evals/rubrics.yaml`.
 - Run: `python evals/run_evals.py --n 50`.
-- Metrics printed: `success_rate`, `avg_latency_sec`, `avg_lm_calls`, `avg_tool_calls`, `avg_steps`, `n`.
+- Metrics printed: `success_rate`, `contains_hit_rate`, `key_hit_rate`, `avg_latency_sec`, `avg_lm_calls`, `avg_tool_calls`, `avg_steps`, `n`.
+- Scoring supports both `expect_contains` (answer substring) and `expect_key` (key present in any tool observation). Weights come from `rubrics.yaml` (`contains_weight`, `key_weight`).
 
 ## Optimize (Teleprompting)
 - Compile optimized few-shot demos for the OpenAI `PlanWithTools` planner and save to JSON:
@@ -161,6 +168,7 @@ The agent loads these demos on OpenAI providers and attaches them to the `PlanWi
 ## Compatibility Notes
 - DSPy is pinned to `dspy-ai>=2.5.0`. Some adapters (e.g., `JSONAdapter`, `dspy.Ollama`) may vary across versions; the code tries multiple backends and falls back to generic registry forms when needed.
 - If `json_repair` is installed, it is used opportunistically to salvage slightly malformed JSON decisions.
+  - Optional install: `pip install -e .[repair]`
 
 ## Limitations and Next Steps
 - Costs/usage are not recorded; you can plumb LM usage metadata into the eval harness if your wrapper exposes it.

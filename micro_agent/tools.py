@@ -115,33 +115,22 @@ TOOLS.update(_load_plugins())
 def to_dspy_tools() -> List["DSpyTool"]:
     """Convert registry tools to DSPy Tool objects for native function calling.
 
-    - Uses simple JSON-schema -> Python type mapping for argument descriptors.
-    - Provides a no-op callable; we execute tool calls via our own registry.
+    Returns a list of dspy.adapters.Tool objects whose names/args mirror our registry.
     """
     try:
-        from dspy.adapters import Tool as DSpyTool  # optional; only needed on OpenAI path
+        from dspy.adapters import Tool as DSpyTool  # lazy import; optional for Ollama path
     except Exception:
         return []
-
-    def _json_type_to_py(t: str):
-        return {
-            "string": str,
-            "integer": int,
-            "number": float,
-            "boolean": bool,
-            "object": dict,
-            "array": list,
-        }.get(str(t).lower(), str)
 
     dtools: List[DSpyTool] = []
     for name, t in TOOLS.items():
         try:
             props = (t.schema or {}).get("properties", {})
-            args_types = {k: _json_type_to_py(v.get("type", "string")) for k, v in props.items()}
             desc = t.description or name
-            def _noop(**kwargs):
+            # Provide a lightweight callable; not used by adapter execution path.
+            def _dummy(**kwargs):
                 return None
-            dtools.append(DSpyTool(func=_noop, name=name, desc=desc, args=args_types))
+            dtools.append(DSpyTool(func=_dummy, name=name, desc=desc, args=props))
         except Exception:
             continue
     return dtools
