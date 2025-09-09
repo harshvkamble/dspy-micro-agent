@@ -31,7 +31,7 @@ def configure_lm():
     def _try(name, fn):
         try:
             lm = fn()
-            dspy.settings.configure(lm=lm)
+            dspy.settings.configure(lm=lm, track_usage=True)
             return True
         except Exception as e:
             tried.append((name, repr(e)))
@@ -79,9 +79,9 @@ def configure_lm():
 
     # Allow explicit mock via env
     if provider == "mock":
-        dspy.settings.configure(lm=_MockLM())
+        dspy.settings.configure(lm=_MockLM(), track_usage=True)
         return
 
     # If we got here, all backends failed: use mock and include details in a warning
-    dspy.settings.configure(lm=_MockLM())
+    dspy.settings.configure(lm=_MockLM(), track_usage=True)
     return

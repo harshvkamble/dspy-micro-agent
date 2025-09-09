@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 from .signatures import PlanOrAct, Finalize, PlanWithTools
 from .tools import TOOLS, run_tool, safe_eval_math, to_dspy_tools
 from .runtime import parse_decision_text
+from .costs import estimate_tokens, estimate_cost_usd
 
 class MicroAgent(dspy.Module):
     """
@@ -151,7 +152,7 @@ class MicroAgent(dspy.Module):
 
         state: List[Dict[str, Any]] = []
 
-        def _accumulate_usage():
+        def _accumulate_usage(input_text: str = "", output_text: str = ""):
             # Pull new usage entries from dspy.settings.trace
             try:
                 for _, _, out in dspy.settings.trace[-1:]:
@@ -162,6 +163,22 @@ class MicroAgent(dspy.Module):
                         total_cost += float(c or 0)
                     total_in_tokens += int(usage.get("input_tokens", 0) or 0)
                     total_out_tokens += int(usage.get("output_tokens", 0) or 0)
+            except Exception:
+                pass
+            # Heuristic fallback: estimate tokens from input/output texts and compute cost via env prices
+            try:
+                if input_text:
+                    it = estimate_tokens(input_text, getattr(self.lm, "model", ""))
+                else:
+                    it = 0
+                if output_text:
+                    ot = estimate_tokens(output_text, getattr(self.lm, "model", ""))
+                else:
+                    ot = 0
+                if it or ot:
+                    total_in_tokens += it
+                    total_out_tokens += ot
+                    total_cost += estimate_cost_usd(it, ot, getattr(self.lm, "model", ""), self._provider or "")
             except Exception:
                 pass
 
@@ -182,6 +199,17 @@ class MicroAgent(dspy.Module):
                     total_cost += float(usage.get('cost', 0.0) or 0.0)
                     total_in_tokens += int(usage.get('input_tokens', 0) or 0)
                     total_out_tokens += int(usage.get('output_tokens', 0) or 0)
+                except Exception:
+                    pass
+                # Heuristic fallback: estimate using a reconstructed prompt & result
+                try:
+                    approx_prompt = self._decision_prompt(
+                        question=question,
+                        state_json=json.dumps(state, ensure_ascii=False),
+                        tools_json=json.dumps(self._tool_list, ensure_ascii=False),
+                    )
+                    approx_out = getattr(pred, 'final', None) or (str(getattr(pred, 'tool_calls', '')))
+                    _accumulate_usage(approx_prompt, approx_out)
                 except Exception:
                     pass
 
@@ -302,6 +330,11 @@ class MicroAgent(dspy.Module):
         # Path B: Ollama-friendly loop via raw LM completions and robust JSON parsing.
         for _ in range(self.max_steps):
             lm_calls += 1
+            prompt_text = self._decision_prompt(
+                    question=question,
+                    state_json=json.dumps(state, ensure_ascii=False),
+                    tools_json=json.dumps(self._tool_list, ensure_ascii=False),
+                )
             raw = self.lm(
                 prompt=self._decision_prompt(
                     question=question,
@@ -310,13 +343,18 @@ class MicroAgent(dspy.Module):
                 )
             )
             decision_text = raw[0] if isinstance(raw, list) else (raw if isinstance(raw, str) else str(raw))
-            _accumulate_usage()
+            _accumulate_usage(prompt_text, decision_text)
 
             # Extract and parse JSON; if malformed, try a flexible parser and one self-correction retry.
             try:
                 decision = parse_decision_text(decision_text)
             except Exception:
                 lm_calls += 1
+                prompt_text = self._decision_prompt(
+                        question=question,
+                        state_json=json.dumps(state, ensure_ascii=False),
+                        tools_json=json.dumps(self._tool_list, ensure_ascii=False),
+                    )
                 raw = self.lm(
                     prompt=self._decision_prompt(
                         question=question,
@@ -325,7 +363,7 @@ class MicroAgent(dspy.Module):
                     )
                 )
                 decision_text = raw[0] if isinstance(raw, list) else (raw if isinstance(raw, str) else str(raw))
-                _accumulate_usage()
+                _accumulate_usage(prompt_text, decision_text)
                 try:
                     decision = parse_decision_text(decision_text)
                 except Exception:
@@ -413,14 +451,18 @@ class MicroAgent(dspy.Module):
             ans = " | ".join(parts) if parts else ""
         else:
             lm_calls += 1
+            finalize_prompt = (
+                "Given the question and the trace of tool observations, write the final answer.\n\n"
+                f"Question: {question}\n\nTrace: {json.dumps(state, ensure_ascii=False)}\n\n"
+                "Answer succinctly."
+            )
             raw = self.lm(
                 prompt=(
-                    "Given the question and the trace of tool observations, write the final answer.\n\n"
-                    f"Question: {question}\n\nTrace: {json.dumps(state, ensure_ascii=False)}\n\n"
-                    "Answer succinctly."
+                    finalize_prompt
                 )
             )
             ans = raw[0] if isinstance(raw, list) else (raw if isinstance(raw, str) else str(raw))
+            _accumulate_usage(finalize_prompt, ans)
         p = dspy.Prediction(answer=ans, trace=state)
         p.usage = {
             "lm_calls": lm_calls,

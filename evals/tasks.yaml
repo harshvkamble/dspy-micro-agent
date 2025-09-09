@@ -16,3 +16,40 @@
 
 - question: "What's 9! / (3!*3!*3!)? Just the integer."
   expect_contains: "1680"
+
+# Additional math/time tasks
+- question: "What's 2^10? Return only the number."
+  expect_contains: "1024"
+
+- question: "Compute 7/2 and return a decimal."
+  expect_contains: "3.5"
+
+- question: "Compute 7//2 (floor division). Return only the integer."
+  expect_contains: "3"
+
+- question: "What is 100 % 7? Return only the integer."
+  expect_contains: "2"
+
+- question: "Calculate 6! and return only the number."
+  expect_contains: "720"
+
+- question: "Compute (12.5 * 4). Return only the number."
+  expect_contains: "50"
+
+- question: "Compute ((7+3)*5 - 12)/4 and return a decimal."
+  expect_contains: "9.5"
+
+- question: "Compute (3+5)*2^3 and return only the number."
+  expect_contains: "64"
+
+- question: "What is (12 - 30)? Return only the number."
+  expect_contains: "-18"
+
+- question: "Add 100 and 250, then tell me the current date in UTC."
+  expect_contains: "350"
+
+- question: "Give me the current timestamp in UTC (ISO)."
+  expect_key: "iso"
+
+- question: "Tell me today's date (UTC) in ISO format."
+  expect_key: "iso"
