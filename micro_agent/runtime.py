@@ -2,6 +2,10 @@ from __future__ import annotations
 import json, os, re, time, uuid, datetime
 from typing import Any, Dict, List, Optional, TypedDict
 import ast
+try:
+    import json_repair
+except Exception:
+    json_repair = None
 
 TRACES_DIR = os.getenv("TRACES_DIR", "traces")
 os.makedirs(TRACES_DIR, exist_ok=True)
@@ -54,15 +58,25 @@ def parse_decision_text(text: str) -> Dict[str, Any]:
     3) Fallback to Python literal parse (single quotes, etc.).
     """
     block = extract_json_block(text)
+    # 1) strict json
     try:
         return json.loads(block)
     except Exception:
+        pass
+    # 2) json-repair (if available)
+    if json_repair is not None:
         try:
-            obj = ast.literal_eval(block)
-            if isinstance(obj, dict):
-                return obj
+            repaired = json_repair.repair(block)
+            return json.loads(repaired)
         except Exception:
             pass
+    # 3) python literal (handles single quotes)
+    try:
+        obj = ast.literal_eval(block)
+        if isinstance(obj, dict):
+            return obj
+    except Exception:
+        pass
     raise ValueError("Could not parse decision as JSON or Python literal")
 
 def now_iso(utc: bool = False) -> str:

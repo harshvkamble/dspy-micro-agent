@@ -54,6 +54,26 @@ def tool_now(args: Dict[str, Any]):
     now = datetime.datetime.now(datetime.timezone.utc) if tz == "utc" else datetime.datetime.now()
     return {"iso": now.isoformat(timespec="seconds")}
 
+def _load_plugins():
+    import importlib, os
+    mods = os.getenv("TOOLS_MODULES", "").strip()
+    if not mods:
+        return {}
+    tools = {}
+    for m in [x.strip() for x in mods.split(",") if x.strip()]:
+        try:
+            mod = importlib.import_module(m)
+        except Exception as e:
+            continue
+        if hasattr(mod, "TOOLS") and isinstance(getattr(mod, "TOOLS"), dict):
+            tools.update(getattr(mod, "TOOLS"))
+        elif hasattr(mod, "get_tools"):
+            try:
+                tools.update(mod.get_tools())
+            except Exception:
+                pass
+    return tools
+
 TOOLS = {
     "calculator": Tool(
         "calculator",
@@ -68,6 +88,7 @@ TOOLS = {
         tool_now
     ),
 }
+TOOLS.update(_load_plugins())
 
 def run_tool(name: str, args: Dict[str, Any]):
     if name not in TOOLS:

@@ -72,9 +72,31 @@ python evals/run_evals.py --n 24
 uvicorn micro_agent.server:app --reload --port 8000
 ```
 
+## Improvements inspired by DSPy tutorials
+
+- Provider-aware adapters: OpenAI can use DSPy `Predict(Signature)` with JSON adapters; Ollama path uses direct LM prompts + robust JSON repair when models drift.
+- Few-shot guidance: The planner prompt includes compact JSON decision demos to stabilize tool selection and formatting.
+- Teleprompt-ready: You can plug in `dspy.teleprompt` (e.g., `BootstrapFewShot`) to optimize signatures when using OpenAI providers.
+- Extensible tools: Load extra tool modules by setting `TOOLS_MODULES="your_pkg.tools,other_pkg.tools"` (each module exposes a `TOOLS` dict or `get_tools()`).
+- Replay: `micro-agent replay --path traces/<id>.jsonl` prints the saved run for inspection or debugging.
+
+### Using Ollama
+```bash
+export LLM_PROVIDER=ollama
+export OLLAMA_MODEL=llama3.1:8b   # pick an installed model
+micro-agent ask --question "Add 12345 and 67890, then UTC date?" --utc
+```
+
+### Using OpenAI
+```bash
+export OPENAI_API_KEY=...
+export OPENAI_MODEL=gpt-4o-mini
+micro-agent ask --question "Compute (7**2+14)/5 and explain briefly"
+```
+
+
 ---
 
 ## Objective
 
 Prove: “An agent is just DSPy modules + a thin runtime loop.”
-

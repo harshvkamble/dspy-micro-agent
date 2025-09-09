@@ -19,7 +19,38 @@ class MicroAgent(dspy.Module):
         self._tool_list = [t.spec() for t in TOOLS.values()]
         self.max_steps = max_steps
 
+    _DEMO_SNIPPETS = [
+        # few-shot decision demos to guide JSON formatting and tool choice
+        (
+            "What's 2*(3+5)?",
+            [],
+            {"tool": {"name": "calculator", "args": {"expression": "2*(3+5)"}}},
+        ),
+        (
+            "What time is it (UTC)?",
+            [],
+            {"tool": {"name": "now", "args": {"timezone": "utc"}}},
+        ),
+        (
+            "Add 12345 and 67890.",
+            [],
+            {"tool": {"name": "calculator", "args": {"expression": "12345 + 67890"}}},
+        ),
+        (
+            "Compute 9! / (3!*3!*3!).",
+            [],
+            {"tool": {"name": "calculator", "args": {"expression": "9! / (3!*3!*3!)"}}},
+        ),
+    ]
+
     def _decision_prompt(self, question: str, state_json: str, tools_json: str) -> str:
+        demos = []
+        for q, st, out in self._DEMO_SNIPPETS:
+            demos.append(
+                f"Example Question: {q}\n"
+                f"Example State: {json.dumps(st, ensure_ascii=False)}\n"
+                f"Decision: {json.dumps(out, ensure_ascii=False)}\n"
+            )
         return (
             "You are a strict planner that chooses a single next action as JSON.\n"
             "Rules:\n"
@@ -28,13 +59,15 @@ class MicroAgent(dspy.Module):
             "- One tool per step.\n"
             "- NEVER finalize until all required tools have been used.\n"
             "- Respond with ONLY one JSON object, no extra text.\n\n"
-            f"Question: {question}\n\n"
-            f"State: {state_json}\n\n"
-            f"Tools: {tools_json}\n\n"
-            "Return exactly one of:\n"
-            "{\"tool\": {\"name\": \"calculator\", \"args\": {\"expression\": \"...\"}}}\n"
-            "{\"tool\": {\"name\": \"now\", \"args\": {\"timezone\": \"utc\"}}}\n"
-            "{\"final\": {\"answer\": \"<complete answer string>\"}}\n"
+            + "\n".join(demos)
+            + "\n"
+            + f"Question: {question}\n\n"
+            + f"State: {state_json}\n\n"
+            + f"Tools: {tools_json}\n\n"
+            + "Return exactly one of:\n"
+            + "{\"tool\": {\"name\": \"calculator\", \"args\": {\"expression\": \"...\"}}}\n"
+            + "{\"tool\": {\"name\": \"now\", \"args\": {\"timezone\": \"utc\"}}}\n"
+            + "{\"final\": {\"answer\": \"<complete answer string>\"}}\n"
         )
 
     def forward(self, question: str):
