@@ -25,7 +25,6 @@ def main():
 
     configure_lm()
     if args.cmd == "replay":
-        import json
         from rich.syntax import Syntax
         with open(args.path, "r", encoding="utf-8") as f:
             lines = f.readlines()

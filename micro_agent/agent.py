@@ -2,8 +2,8 @@ from __future__ import annotations
 import json
 import dspy
 from typing import List, Dict, Any
-from .signatures import PlanOrAct, Finalize
-from .tools import TOOLS, run_tool, safe_eval_math
+from .signatures import PlanOrAct, Finalize, PlanWithTools
+from .tools import TOOLS, run_tool, safe_eval_math, to_dspy_tools
 from .runtime import parse_decision_text
 
 class MicroAgent(dspy.Module):
@@ -18,6 +18,12 @@ class MicroAgent(dspy.Module):
         self.finalize = None  # fallback finalize handled via LM prompt
         self._tool_list = [t.spec() for t in TOOLS.values()]
         self.max_steps = max_steps
+        self._provider = None
+        try:
+            self._provider = (self.lm.model.split("/", 1)[0] if getattr(self.lm, "model", None) else None)
+        except Exception:
+            self._provider = None
+        self._use_tool_calls = bool(self._provider == "openai")
 
     _DEMO_SNIPPETS = [
         # few-shot decision demos to guide JSON formatting and tool choice
@@ -92,6 +98,70 @@ class MicroAgent(dspy.Module):
         must_time = needs_time(question)
 
         state: List[Dict[str, Any]] = []
+
+        # Path A: OpenAI-native tool calling using DSPy signatures/adapters.
+        if self._use_tool_calls:
+            # Temporarily set JSONAdapter to enable native function calling.
+            orig_adapter = dspy.settings.get('adapter', None)
+            try:
+                from dspy.adapters import JSONAdapter
+                dspy.settings.configure(adapter=JSONAdapter())
+            except Exception:
+                pass
+
+            dspy_tools = to_dspy_tools()
+            planner = dspy.Predict(PlanWithTools)
+
+            for _ in range(self.max_steps):
+                pred = planner(
+                    question=question,
+                    state=json.dumps(state, ensure_ascii=False),
+                    tools=dspy_tools,
+                )
+
+                # If tool calls are proposed, execute them.
+                calls = getattr(pred, 'tool_calls', None)
+                executed_any = False
+                if calls and getattr(calls, 'tool_calls', None):
+                    for call in calls.tool_calls:
+                        try:
+                            name = getattr(call, 'name')
+                            args = getattr(call, 'args') or {}
+                        except Exception:
+                            continue
+                        obs = run_tool(name, args)
+                        state.append({"tool": name, "args": args, "observation": obs})
+                        executed_any = True
+
+                # Check finalization.
+                final = getattr(pred, 'final', None)
+                if final:
+                    if must_math and not used_tool(state, "calculator"):
+                        state.append({"tool": "⛔️policy_violation", "args": {}, "observation": "Finalize before calculator (OpenAI path)."})
+                        # If tools were suggested and executed this step, iterate; else force tool suggestion by continuing.
+                        continue
+                    if must_time and not used_tool(state, "now"):
+                        state.append({"tool": "⛔️policy_violation", "args": {}, "observation": "Finalize before now (OpenAI path)."})
+                        continue
+                    return dspy.Prediction(answer=final, trace=state)
+
+                # If no tool and no final, gently nudge by adding a malformed marker.
+                if not executed_any:
+                    state.append({"tool": "⛔️no_action", "args": {}, "observation": "No tool_calls or final returned."})
+                    # Continue loop
+
+            # Fallback compose from tools
+            calculators = [s for s in state if s.get("tool") == "calculator" and isinstance(s.get("observation"), dict)]
+            nows = [s for s in state if s.get("tool") == "now" and isinstance(s.get("observation"), dict)]
+            parts = []
+            if calculators:
+                parts.append(str(calculators[0]["observation"].get("result")))
+            if nows:
+                iso = nows[-1]["observation"].get("iso")
+                if iso:
+                    parts.append(f"UTC: {iso}")
+            return dspy.Prediction(answer=" | ".join([p for p in parts if p]), trace=state)
+        # Path B: Ollama-friendly loop via raw LM completions and robust JSON parsing.
         for _ in range(self.max_steps):
             raw = self.lm(
                 prompt=self._decision_prompt(

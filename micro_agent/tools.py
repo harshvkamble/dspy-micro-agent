@@ -1,5 +1,6 @@
 from __future__ import annotations
 import ast, operator, datetime, math, re
+from typing import List
 from typing import Any, Dict, Callable
 
 class Tool:
@@ -89,6 +90,29 @@ TOOLS = {
     ),
 }
 TOOLS.update(_load_plugins())
+
+def to_dspy_tools() -> List["DSpyTool"]:
+    """Convert registry tools to DSPy Tool objects for native function calling.
+
+    Returns a list of dspy.adapters.Tool objects whose names/args mirror our registry.
+    """
+    try:
+        from dspy.adapters import Tool as DSpyTool  # lazy import; optional for Ollama path
+    except Exception:
+        return []
+
+    dtools: List[DSpyTool] = []
+    for name, t in TOOLS.items():
+        try:
+            props = (t.schema or {}).get("properties", {})
+            desc = t.description or name
+            # Provide a lightweight callable; not used by adapter execution path.
+            def _dummy(**kwargs):
+                return None
+            dtools.append(DSpyTool(func=_dummy, name=name, desc=desc, args=props))
+        except Exception:
+            continue
+    return dtools
 
 def run_tool(name: str, args: Dict[str, Any]):
     if name not in TOOLS:
